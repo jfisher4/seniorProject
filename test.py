@@ -14,7 +14,7 @@ cv2.imshow("initial", image2)
 x = torch.fromNumpyArray(image2)
 
 w = imageTest(x)
-#print(w)
+print(type(w))
 
 y = w.asNumpyArray()
 cv2.imshow("result", y)

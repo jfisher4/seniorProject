@@ -14,43 +14,57 @@ require 'deepmask.InferSharpMask'
 require 'inn'
 require 'fbcoco'
 require 'image'
-local model_utils = require 'models.model_utils'
-local utils = require 'utils'
-local coco = require 'coco'
+model_utils = require 'models.model_utils'
+utils = require 'utils'
+coco = require 'coco'
 
 MultiPathNet = {np=5,si=-2.5,sf=.5,ss=.5,dm=false,thr=0.5,maxsize=600,sharpmask_path='/home/ryanubuntu/multipathnet/data/models/sharpmask.t7',
     multipath_path='/home/ryanubuntu/multipathnet/data/models/resnet18_integral_coco.t7'}
 --print(MultiPathNet.sharpmask_path)
 MultiPathNet.init = function (self)
-    self.sharpmask = torch.load(MultiPathNet.sharpmask_path).model
-    self.multipathnet = torch.load(MultiPathNet.multipath_path)
+    print("starting multipathnet init")
+    self.sharpmask = torch.load(self.sharpmask_path).model
+    self.multipathnet = torch.load(self.multipath_path)
     self.meanstd = {mean = { 0.485, 0.456, 0.406 }, std = { 0.229, 0.224, 0.225 }}
     self.scales = {}
+    for i = self.si,self.sf,self.ss do table.insert(self.scales,2^i) end
+
     self.infer = Infer{
-        np = MultiPathNet.np,
-        scales = MultiPathNet.scales,
-        meanstd = MultiPathNet.meanstd,
-        model = MultiPathNet.sharpmask,
-        dm = MultiPathNet.dm,
+        np = self.np,
+        scales = self.scales,
+        meanstd = self.meanstd,
+        model = self.sharpmask,
+        dm = self.dm,
     }
+    print("multipathnet init finished")
 end
 MultiPathNet.start = function (self)
+    print("starting multipathnet start")
     self.sharpmask:inference(self.np)
     self.multipathnet:evaluate()
     self.multipathnet:cuda()
     model_utils.testModel(self.multipathnet)
     self.detector = fbcoco.ImageDetect(self.multipathnet, model_utils.ImagenetTransformer())
-    for i = self.si,self.sf,self.ss do table.insert(self.scales,2^i) end
-    print(scales)
-    self.infer.scales = self.scales -- update the scales
+
+    print("printing scales in start method", self.scales)
+    --self.infer.scales = self.scales -- update the scales
+    print("multipathnet start finished")
 end
 MultiPathNet.processImg = function (self, img)
+    print("multipathnet processImg starting")
     img = image.scale(img, self.maxsize)
+    --img2 = img:float()
+    print(type(img2))
     h,w = img:size(2),img:size(3)
-    self.infer:forward(img)
+    print("test1")
+    --print("self.infer:forward",self.infer:forward())
+    self.infer:forward(img)  -- this is where the problem is
+    print("test2")
     masks,_ = self.infer:getTopProps(.2,h,w)
+
     Rs = coco.MaskApi.encode(masks)
     bboxes = coco.MaskApi.toBbox(Rs)
+    print("test3")
     bboxes:narrow(2,3,2):add(bboxes:narrow(2,1,2)) -- convert from x,y,w,h to x1,y1,x2,y2
     detections = self.detector:detect(img:float(), bboxes:float())
     prob, maxes = detections:max(2)

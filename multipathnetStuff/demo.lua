@@ -21,18 +21,19 @@ local coco = require 'coco'
 MultiPathNet = {np=5,si=-2.5,sf=.5,ss=.5,dm=false,thr=0.5,maxsize=600,sharpmask_path='/home/ryanubuntu/multipathnet/data/models/sharpmask.t7',
     multipath_path='/home/ryanubuntu/multipathnet/data/models/resnet18_integral_coco.t7'}
 --print(MultiPathNet.sharpmask_path)
-MultiPathNet.sharpmask = torch.load(MultiPathNet.sharpmask_path).model
-MultiPathNet.multipathnet = torch.load(MultiPathNet.multipath_path)
-
-MultiPathNet.meanstd = {mean = { 0.485, 0.456, 0.406 }, std = { 0.229, 0.224, 0.225 }}
-MultiPathNet.scales = {}
-MultiPathNet.infer = Infer{
-    np = MultiPathNet.np,
-    scales = MultiPathNet.scales,
-    meanstd = MultiPathNet.meanstd,
-    model = MultiPathNet.sharpmask,
-    dm = MultiPathNet.dm,
-}
+MultiPathNet.init = function (self)
+    self.sharpmask = torch.load(MultiPathNet.sharpmask_path).model
+    self.multipathnet = torch.load(MultiPathNet.multipath_path)
+    self.meanstd = {mean = { 0.485, 0.456, 0.406 }, std = { 0.229, 0.224, 0.225 }}
+    self.scales = {}
+    self.infer = Infer{
+        np = MultiPathNet.np,
+        scales = MultiPathNet.scales,
+        meanstd = MultiPathNet.meanstd,
+        model = MultiPathNet.sharpmask,
+        dm = MultiPathNet.dm,
+    }
+end
 MultiPathNet.start = function (self)
     self.sharpmask:inference(self.np)
     self.multipathnet:evaluate()

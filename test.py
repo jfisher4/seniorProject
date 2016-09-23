@@ -7,7 +7,7 @@ require("testing")
 lua.LuaRuntime(zero_based_index=True)
 
 # read in an image
-image2 = cv2.imread('/home/ryanubuntu/Documents/seniorProject/res.jpg',1)
+image2 = cv2.imread('/home/robotics_group/seniorProject/res.jpg',1)
 # print the image type
 print(type(image2))
 # show the original image

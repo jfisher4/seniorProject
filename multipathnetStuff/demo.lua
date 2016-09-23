@@ -52,8 +52,12 @@ MultiPathNet.start = function (self)
 end
 MultiPathNet.processImg = function (self, img)
     print("multipathnet processImg starting")
-    local img2 = image.load('/home/robotics_group/multipathnet/deepmask/data/testImage.jpg')
-
+    print(img:type())
+    print(img:size())
+    self.test(self,img)
+    img2 = img:clone()
+    --local img2 = image.load('/home/robotics_group/multipathnet/deepmask/data/testImage.jpg')
+    --local img2 = self.clampImage(self, img2)
     img2 = image.scale(img2, self.maxsize)
     --img2 = img:float()
     print(type(img2))
@@ -100,3 +104,15 @@ MultiPathNet.processImg = function (self, img)
     return prob, names, masks
 end
 
+MultiPathNet.clampImage =  function (self, tensor)
+   --if tensor:type() == 'torch.ByteTensor' then
+      --return tensor
+   --end
+   local a = torch.Tensor():resize(tensor:size()):copy(tensor)
+   a.image.saturate(a) -- bound btwn 0 and 1
+   a:mul(255)          -- remap to [0..255]
+   return a
+end
+MultiPathNet.test =  function (self, img)
+    print(img:type(), 'testing!!!!')
+end

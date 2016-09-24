@@ -4,12 +4,12 @@ import lutorpy as lua
 #import pickle
 #import the lua script
 require("demo")
-
+ROI_RESIZE_DIM = (64,128)
 lua.LuaRuntime(zero_based_index=True)
 
 def test(img):
     # read in an image
-    image2 = cv2.imread('/home/ryanubuntu/seniorProject/res.jpg',1)
+    image2 = cv2.imread('/home/robotics_group/seniorProject/res.jpg',1)
     # print the image type
     #print(type(image2))
     # show the original image
@@ -26,7 +26,11 @@ def test(img):
         cv2.destroyAllWindows()
 
 
-image2 = cv2.imread('/home/ryanubuntu/seniorProject/res.jpg',1)
+image2 = cv2.imread('/home/robotics_group/seniorProject/res.jpg',1)
+
+saveName="/home/robotics_group/multipathnet/data/testTmp.jpeg" # save the file so that we can load it into lua
+cv2.imwrite(saveName, image2)
+#image2 = np.uint8(image2) #test this out to see if it helps with data type issue?
 x = torch.fromNumpyArray(image2)
 # create an instance of the MultiPathNet Object
 w = MultiPathNet
@@ -34,7 +38,10 @@ w = MultiPathNet
 w.init(w)
 w.start(w)
 probs, names, masks = w.processImg(w,x)
-#masks = masks.asNumpyArray()
+
+masks = masks.asNumpyArray()
+TEST_MASK_ROI=cv2.resize(masks,ROI_RESIZE_DIM)
+cv2.imshow('segStatImg',TEST_MASK_ROI)
 #cv2.imshow(tmp, masks)
 
 

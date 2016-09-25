@@ -52,18 +52,19 @@ MultiPathNet.start = function (self)
 end
 MultiPathNet.processImg = function (self, img)
     print("multipathnet processImg starting")
-    print(img:type())
-    print(img:size())
-    self.test(self,img)
-    --img2 = img:clone()
-    local img2 = image.load('/home/robotics_group/multipathnet/deepmask/data/testTmp.jpeg')
-    --local img2 = self.clampImage(self, img2)
+    print(img:type(), "img type") -- even when i try to change the type of this to double or float the forwar function below still fails, something occurs in foward that I am not doing in python
+    print(img:size(),'img.size')
+
+    local img2 = image.load('/home/robotics_group/multipathnet/deepmask/data/testTmp.jpeg')--read in the image from file since image:load does something to the image that I have not yet figured out
+    print(img2:type(),"img2 type")
+    print(img2:size(),'img2.size')
+
     img2 = image.scale(img2, self.maxsize)
-    --img2 = img:float()
-    print(type(img2))
+    --img2 = img2:float()
+
     h,w = img2:size(2),img2:size(3)
     print("test1")
-    --print("self.infer:forward",self.infer:forward())
+
     self.infer:forward(img2)  -- this is where the problem is
     print("test2")
     masks,_ = self.infer:getTopProps(.2,h,w)
@@ -85,6 +86,8 @@ MultiPathNet.processImg = function (self, img)
     final_idx = utils.nms_dense(scored_boxes, 0.3)
     -- remove suppressed masks
     masks = masks:index(1, idx):index(1, final_idx)
+    print(masks:size(),"masks size in lua")
+    print(masks:type(), "masks type in lua")
     print("test6")
     dataset = paths.dofile'./DataSetJSON.lua':create'coco_val2014'
     print("test7")
@@ -102,17 +105,4 @@ MultiPathNet.processImg = function (self, img)
 
     print('| done')
     return prob, names, masks
-end
-
-MultiPathNet.clampImage =  function (self, tensor)
-   --if tensor:type() == 'torch.ByteTensor' then
-      --return tensor
-   --end
-   local a = torch.Tensor():resize(tensor:size()):copy(tensor)
-   a.image.saturate(a) -- bound btwn 0 and 1
-   a:mul(255)          -- remap to [0..255]
-   return a
-end
-MultiPathNet.test =  function (self, img)
-    print(img:type(), 'testing!!!!')
 end

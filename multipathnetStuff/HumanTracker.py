@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import lutorpy as lua
 import pickle
+import time
+#import os
 #import the lua script
 require("demo")
 ROI_RESIZE_DIM = (600,400)
@@ -11,17 +13,17 @@ class HumanTracker:
     
     def __init__(self, directory, videoname):
         self.directory = directory
-        self.cap = cv2.VideoCapture(videoname)
+        self.cap = cv2.VideoCapture(directory+videoname)
         self.metadata = videoname.split("_")
         #self.homography = pickle.load( open( self.metadata[0]+"_H.p", "rb" ) )
         #self.rotationMatrix = pickle.load(open( self.metadata[0]+"_rotM.p","rb"))
         #self.cameraPosition = Tools.cameraPosition(self.rotationMatrix, pickle.load( open( self.metadata[0]+"_tvec.p", "rb" ) ))
         self.frameNumber = 0
-        self.saveName=directory + "../multipathnet/deepmask/data/testTmp.jpeg" # save the file so that we can load it into lua, hopefully we can find a better way
+        self.saveName="/home/robotics_group/multipathnet/deepmask/data/testTmp.jpeg" # save the file so that we can load it into lua, hopefully we can find a better way
         self.multiPathObject = MultiPathNet
         #init the object
-        multiPathObject.init(multiPathObject)
-        multiPathObject.start(multiPathObject)
+        self.multiPathObject.init(self.multiPathObject)
+        self.multiPathObject.start(self.multiPathObject)
         self.trackedPeople = People()
         _, self.prvs = self.cap.read()
 	
@@ -31,39 +33,46 @@ class HumanTracker:
         if not ret: #allow for a graceful exit when the video ends
             print("Exiting Program End of Video...")
             self.cap.release()
-            Tools.cv2.destroyAllWindows()
+            cv2.destroyAllWindows()
             return(None, 0) #return 0 to toggle active off
 
         self.frameNumber += 1
+        height, width = img.shape[:2]
+        #img = cv2.resize(img,(2*width, 2*height))
+        cv2.imwrite(self.saveName, img)
+        cv2.imshow("image",img)
+        print(img.shape,"img.shape")
         luaImg = np.reshape(img, (img.shape[2],img.shape[0],img.shape[1]))#convert the shape to the same as lua load image, but there is still somethign wrong with the data
         luaImg = torch.fromNumpyArray(luaImg)
-        cv2.imwrite(self.saveName, luaImg)
+
         #print('framenumber ' + str(self.frameNumber))
-        probs, names, masks = multiPathObject.processImg(multiPathObject,luaImg)
+        probs, labels, masks = self.multiPathObject.processImg(self.multiPathObject,luaImg)
         #print('W', WIDTH, 'H', HEIGHT)
         masks = masks.asNumpyArray()
-        for maskNum in masks.shape[0]:
+        for maskNum in range(masks.shape[0]):
             if labels[maskNum] == "person":
                 currentMask = masks[maskNum].reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
+                currentMask = cv2.normalize(currentMask, None, 0, 255, cv2.NORM_MINMAX)
+                #need to conver the mask to range of 0-255 for imshow to work
                 #get color histogram from mask
 
                 #match to existing person or create new person and give attribute mask to the person object
-            cv2.imshow('Masks'+str(maskNum),currentMask)
+                cv2.imshow('Masks'+str(maskNum),currentMask)
         imgDisplay = img.copy()
-        k = Tools.cv2.waitKey(2) & 0xFF
+        k = cv2.waitKey(2) & 0xFF
         if k == ord('p'):
             print("Pausing...")
             return (None,2) #return 2 for paused
         elif k == ord('q'):
             print("Exiting Program...")
             self.cap.release()
-            Tools.cv2.destroyAllWindows()
+            cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off
         elif self.frameNumber == 10000: #for testing only to pause at a certain frame
             timeEnd = time.time()
             totalTime = timeEnd - timeStart
             print(totalTime,'totalTime')
-        elif self.frameNumber == 401: #for testing only to pause at a certain frame
+        elif self.frameNumber == 100: #for testing only to pause at a certain frame
             return (None,2)
         return (None,1) #return 1 to stay active
 

@@ -33,6 +33,7 @@ cv2.imwrite(saveName, image2)
 
 print(image2.shape)
 image2 = np.reshape(image2, (image2.shape[2],image2.shape[0],image2.shape[1]))#convert the shape to  the same as lua load image, but there is still somethign wrong with the data
+image2 = cv2.normalize(image2.astype('float'), None, 0.0, 1.0, cv2.NORM_MINMAX)
 luaImg = torch.fromNumpyArray(image2)
 print(image2.shape)
 print(luaImg.size(luaImg))
@@ -47,20 +48,20 @@ masks = masks.asNumpyArray()
 #pickle.dump( masks, open( "/home/robotics_group/multipathnet/masksTest.p", "wb" ) ) #used for offline testing to save time
 print(masks.shape, "masks.shape")
 newList = [] # new list for getting data from masks since my attempts to assign vals in a numpy array were not working
-counter = 0
-for i in range(masks.shape[1]):
-    for j in range(masks.shape[2]):
-        if masks[0][i][j] != 0:
-            #print(masks[0][i][j])
-            #newList.append(masks[0][i][j])
-            newList.append(255) # convert the one to 255 for presentation in image
-            counter = counter + 1
-        else:
-            #newList.append(masks[0][i][j])
-            newList.append(0) # convert anything else to 0
-        #newMasks[i][j] = masks[i][j]
-
-print (counter, "counter")
+#counter = 0
+#for i in range(masks.shape[1]):
+    #for j in range(masks.shape[2]):
+        #if masks[0][i][j] != 0:
+            ##print(masks[0][i][j])
+            ##newList.append(masks[0][i][j])
+            #newList.append(255) # convert the one to 255 for presentation in image
+            #counter = counter + 1
+        #else:
+            ##newList.append(masks[0][i][j])
+            #newList.append(0) # convert anything else to 0
+        ##newMasks[i][j] = masks[i][j]
+masks = cv2.normalize(masks, None, 0, 255, cv2.NORM_MINMAX)
+#print (counter, "counter")
 
 newMasks = np.array(newList,dtype = np.uint8).reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
 print(newMasks.shape, "newMasks.shape")

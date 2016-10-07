@@ -6,7 +6,7 @@ import time
 #import os
 #import the lua script
 require("demo")
-ROI_RESIZE_DIM = (600,400)
+
 lua.LuaRuntime(zero_based_index=False)
 
 class HumanTracker:
@@ -26,7 +26,17 @@ class HumanTracker:
         self.multiPathObject.start(self.multiPathObject)
         self.trackedPeople = People()
         _, self.prvs = self.cap.read()
-	
+        # code to determine the output frame size
+        cv2.imwrite(self.saveName, self.prvs)
+        luaImg = np.reshape(self.prvs, (self.prvs.shape[2],self.prvs.shape[0],self.prvs.shape[1]))
+        luaImg = torch.fromNumpyArray(luaImg)
+        probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+        tmpImg = tmpImg.asNumpyArray()
+        self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
+        print(self.ROI_RESIZE_DIM,"DIM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
+
+
     def readAndTrack(self):
         time1 = time.time()
         ret,img = self.cap.read()
@@ -39,22 +49,31 @@ class HumanTracker:
         self.frameNumber += 1
         height, width = img.shape[:2]
         #img = cv2.resize(img,(2*width, 2*height))
+        #resize image to whatever lua needs
+
+
         cv2.imwrite(self.saveName, img)
         cv2.imshow("image",img)
         print(img.shape,"img.shape")
+        print(self.ROI_RESIZE_DIM,"DIM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         luaImg = np.reshape(img, (img.shape[2],img.shape[0],img.shape[1]))#convert the shape to the same as lua load image, but there is still somethign wrong with the data
         luaImg = torch.fromNumpyArray(luaImg)
 
         #print('framenumber ' + str(self.frameNumber))
-        probs, labels, masks = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+        probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
         #print('W', WIDTH, 'H', HEIGHT)
         masks = masks.asNumpyArray()
         for maskNum in range(masks.shape[0]):
             if labels[maskNum] == "person":
                 currentMask = masks[maskNum].reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
+                #need to convert the mask to range of 0-255 for imshow to work
                 currentMask = cv2.normalize(currentMask, None, 0, 255, cv2.NORM_MINMAX)
-                #need to conver the mask to range of 0-255 for imshow to work
                 #get color histogram from mask
+                hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
+                #show the histogram
+                displayHistogram(hist,self.frameNumber,maskNum)
+
+
 
                 #match to existing person or create new person and give attribute mask to the person object
                 cv2.imshow('Masks'+str(maskNum),currentMask)
@@ -650,3 +669,43 @@ class ClusterGroup(): #class to hold the individual groups of occluded people. c
                     self.people.remove(person)
                     self.index= self.index - 1    
                     
+
+
+def displayHistogram(histogram,frameNumber=-1,id=-1):
+    histogram = histogram.reshape(-1)
+    binCount = histogram.shape[0]
+    BIN_WIDTH = 3
+    img = np.zeros((256, binCount*BIN_WIDTH, 3), np.uint8)
+    for i in xrange(binCount):
+        h = int(histogram[i])
+        cv2.rectangle(img, (i*BIN_WIDTH+1, 255), ((i+1)*BIN_WIDTH-1, 255-h), (int(180.0*i/binCount), 255, 255), -1)
+    img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
+    if(frameNumber != -1):
+        cv2.putText(img,'Frame#: %d' %frameNumber,(20,20),0, .75, (255,255,255), 1,8, False)
+    if(id!=-1):
+        cv2.imshow("Person "+str(id)+" Histogram", img)
+    else:
+        cv2.imshow("Probable Person Histogram", img)
+
+def getHist(img,fgmask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
+    #mask = fgmask[fY:fY+fH,fX:fX+fW].copy()
+    mask = fgmask.copy()
+
+    #roiM = img[fY:(fY)+(fH), fX:(fX)+(fW)].copy()
+    #res = cv2.resize(img,(2*width, 2*height), interpolation = cv2.INTER_CUBIC)
+    print(fW,fH,"fW,fH in getHist")
+    roiM = cv2.resize(img,(fW,fH))
+
+    hsv_roi =  cv2.cvtColor(roiM, cv2.COLOR_BGR2HSV)
+
+
+    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
+    #Tools.displayHistogram(roi_hist,self.frameNumber)
+    cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
+    del roiM
+    del mask
+    return roi_hist
+
+def histogramComparison(curRoiHist,newRoiHist):
+    distance = cv2.compareHist(curRoiHist,newRoiHist,4) #update based on color match 4
+    return distance

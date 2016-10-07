@@ -104,5 +104,5 @@ MultiPathNet.processImg = function (self, img)
     end
 
     print('| done')
-    return prob, names, masks
+    return prob, names, masks, img2
 end

@@ -3,6 +3,7 @@ import numpy as np
 import lutorpy as lua
 import pickle
 import time
+from storage import *
 #import os
 #import the lua script
 require("demo")
@@ -10,8 +11,9 @@ require("demo")
 lua.LuaRuntime(zero_based_index=False)
 
 class HumanTracker:
-    
+
     def __init__(self, directory, videoname):
+        self.videoSave = Video()
         self.directory = directory
         self.cap = cv2.VideoCapture(directory+videoname)
         self.metadata = videoname.split("_")
@@ -63,11 +65,17 @@ class HumanTracker:
         probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
         #print('W', WIDTH, 'H', HEIGHT)
         masks = masks.asNumpyArray()
+        frame = Frame()
         for maskNum in range(masks.shape[0]):
+
+            dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNums])
+            frame.addImageObject(dataObj)
+
             if labels[maskNum] == "person":
                 currentMask = masks[maskNum].reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
                 #need to convert the mask to range of 0-255 for imshow to work
                 currentMask = cv2.normalize(currentMask, None, 0, 255, cv2.NORM_MINMAX)
+
                 #get color histogram from mask
                 hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
                 #show the histogram
@@ -77,6 +85,7 @@ class HumanTracker:
 
                 #match to existing person or create new person and give attribute mask to the person object
                 cv2.imshow('Masks'+str(maskNum),currentMask)
+        self.videoSave.addFrame(frame)
         imgDisplay = img.copy()
         k = cv2.waitKey(2) & 0xFF
         if k == ord('p'):
@@ -95,26 +104,6 @@ class HumanTracker:
             return (None,2)
         return (None,1) #return 1 to stay active
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class People():
     ## The constructor.
     def __init__(self):
@@ -122,9 +111,9 @@ class People():
         self.lostListOfPeople=list()
         self.index=0
 
-# Updates an item in the list of people/object or appends a new entry or assigns to a group or removes from a group      
+# Updates an item in the list of people/object or appends a new entry or assigns to a group or removes from a group
     def update(self,img,fgmask,fX,fY,fW,fH,frameNumber,roiHist,height,bSROIs,homography,cameraPosition,listOfPeople):
-        
+
         matches = []
         #lostFlag = 0
         occlCandidate = [] #list to hold a group of people that a person may be added to
@@ -138,11 +127,11 @@ class People():
         else:
             if box0[0] <= 100 or box0[0]+box0[2] >= WIDTH-100 or box0[1] <= 2 or box0[1]+box0[3] >= HEIGHT-20 : #check if person1 is on edge of scene
                 boxOnEdge = True
-                
+
             else:
                 boxOnEdge = False
 
-        
+
         if len(matches) == 0: #new method 1
             i = 0
             for person in self.listOfPeople:
@@ -157,9 +146,9 @@ class People():
                     else: #used in first iteration to set up overlap and histogram comparison
                         matches = [(lapping, i,0,histDist)]
                 i = i + 1
-        
-        
-        
+
+
+
         if len(matches) == 0 and boxOnEdge == False: #try to assign to person that is sharing a ROI
             i = 0
             for person in self.listOfPeople:
@@ -169,7 +158,7 @@ class People():
                     if dist < 5:
                         histDist = Tools.histogramComparison(roiHist,person.roiHist)
                     #print(histDist,'histDist 323')
-                        if len(matches)>0: #used after first iteration to compare overlap and histogram 
+                        if len(matches)>0: #used after first iteration to compare overlap and histogram
                         #if lapping > matches[0][0]:
                             if histDist < matches[0][3]:
                                 matches = [([], i,0,histDist)]  #flag of one means it was found in  lost people
@@ -177,7 +166,7 @@ class People():
                             matches = [([], i,0,histDist)]
                 i = i + 1
             if len(matches) > 0:
-                
+
                 person = self.listOfPeople[matches[0][1]]
                 if person.V > 0:
                     person.roiCurrent = box0
@@ -189,14 +178,14 @@ class People():
                     person.roiCounter = 0
                     #print('distance is '+str(matches[0][0])+' '+ 'match found for ' +str(person.ID)+' in update case 0',lostFlag,'lostFlag')
                 return
-                
-        
+
+
         if len(matches) == 0: #check lost people for match
             i = 0
             for person in self.lostListOfPeople:
                 histDist = Tools.histogramComparison(roiHist,person.roiHist)
                # print(histDist,'histDist 323')
-                if len(matches)>0: #used after first iteration to compare overlap and histogram 
+                if len(matches)>0: #used after first iteration to compare overlap and histogram
                     #if lapping > matches[0][0]:
                     if histDist < matches[0][3]:
                         matches = [([], i,1,histDist)]  #flag of one means it was found in  lost people
@@ -205,7 +194,7 @@ class People():
                 i = i + 1
             if len(matches) > 0:
                 if matches[0][3]> 7000: #hard coded value based on observations
-                    
+
                     matches = [] #histogram match is not close enough make  a new person
                     #lostFlag = 0
                 else:
@@ -220,7 +209,7 @@ class People():
                         matches = []
                         #lostFlag = 0
 
-        
+
         if len(matches)>0 and len(occlCandidate) == 0: #1 match found and no occlusion update person attributes update person
             flag = matches[0][2]
             index = matches[0][1]
@@ -230,10 +219,10 @@ class People():
                 person = self.lostListOfPeople[index]
                 self.insertPerson(person,self.listOfPeople)
                 self.removePerson(person.ID,self.lostListOfPeople)
-             
+
             if person.V > 0:#frameNumber > person.location[-1][0]: #if this is the first hog box for a person in this frame update person
                 if len(person.roiHistList)< 5: #try to optimize the persons color histogram
-                    
+
                     p1 = Tools.pixelToWorld((fX+(fW/2),fY+fH),homography)
                     distance = -1
                     for person2 in self.listOfPeople:
@@ -250,7 +239,7 @@ class People():
                             else:
                                 distance = distance2
                                # print('test')
-                        
+
                    # print('distance in hist update', distance)
                     #print(min(distance),'min')
                     if distance == -1 or distance > 1:
@@ -258,27 +247,27 @@ class People():
                         person.roiHistList.append(roiHist2)
                         #Tools.displayHistogram(person.roiHist,frameNumber,person.ID)
                     if len(person.roiHistList) > 1: #optimize the histogram
-                    
-                        #print(person.roiHistList)                     
+
+                        #print(person.roiHistList)
                         for hist in person.roiHistList:
                             for i in range(len(person.roiHist)):
                                 person.roiHist[i] = person.roiHist[i]+hist[i]
                         for i in range(len(person.roiHist)):
                             person.roiHist[i] = person.roiHist[i]/len(person.roiHistList)
-         
-                    
+
+
                 person.V=0
                 person.edgeCounter = 0
                 person.roiCounter = 0
                 #print('distance is '+str(matches[0][0])+' '+ 'match found for ' +str(person.ID)+' in update case 1',lostFlag,'lostFlag')
                 return
             else:
-                
+
                 return
 
 
-        
-        
+
+
         elif len(matches) == 0 and len(occlCandidate) == 0:#4 no match found so create person after refining the hog box
             roiHist = Tools.foreGroundHist(img,fgmask,fX,fY,fW,fH,ROI_RESIZE_DIM)
             tmp_node=Person(self.index,fX,fY,fW,fH,0,roiHist,height) #step 3 only update persons histogram on creation, not in subsequent updates.
@@ -296,12 +285,12 @@ class People():
                 self.index=self.index+1
                 #print('new person added roiCurrent cheated, index is '+ str(self.index) +' case 4e')
                 return
-                    
+
     def refresh(self,img,imgCopy,fgmask,frameNumber,bSROIs,homography,cameraPosition,term_crit,waitingList): #updates people's boxes and checks for occlusion
         personList = list(self.listOfPeople) #make copy of people list to use for while loop
-        
+
         while len(personList) > 0:
-            
+
             person1 = self.getPerson(personList[0].ID,self.listOfPeople)
             #print(person1.ID,'moving = ', person1.moving)
             flag = 0
@@ -316,43 +305,43 @@ class People():
                         person2Box = [person2.roiCurrent[0], person2.roiCurrent[1], person2.roiCurrent[2], person2.roiCurrent[3]]
                     else:
                         person2Box = [person2.lastROICurrent[0], person2.lastROICurrent[1], person2.lastROICurrent[2], person2.lastROICurrent[3]]
-                        
+
                     if person1Box2 == person2Box:
                         flag = 1
-                              
-                                
-            #print(person1.ID, flag, 'flag for current person')                
+
+
+            #print(person1.ID, flag, 'flag for current person')
 
             if flag == 0 and len(person1.roiCurrent) > 0 and person1.V == 1:
-                
+
                 bottomPoint = Tools.pixelToWorld((person1.fX+(person1.fW/2),person1.fY+person1.fH), homography) #find location of bottom center of the roi
                 topPoint = Tools.pixelToWorld((person1.fX+(person1.fW/2),person1.fY), homography)         #find location of the top center of the roi
                 tmpHeight = Tools.objectHeight(bottomPoint, topPoint, cameraPosition)   #calculate the height of the roi
                 #print(box,'BSFinderbox 114')
                 #print(person.location)
                 if tmpHeight >= 1.25: #filter out bad regions based on height
-                    
+
                     #find avg height for person
                     if len(person1.heightList) < 35:
                         #if person.V == 1:
                         person1.heightList.append(tmpHeight)
-                        
+
                     else:
                         if person1.height == -1:
                             person1.height = np.average(person1.heightList)
-                            
+
                     leftPoint = Tools.pixelToWorld((person1.fX,person1.fY+person1.fH), homography)
                     rightPoint = Tools.pixelToWorld((person1.fX+person1.fW,person1.fY+person1.fH), homography)
-                    tmpWidth = Tools.objectDistance(leftPoint,rightPoint)        
+                    tmpWidth = Tools.objectDistance(leftPoint,rightPoint)
                     if len(person1.widthList) < 35:
                         person1.widthList.append(tmpWidth)
-                        
+
                     else:
                         if person1.width == -1:
-                            person1.width = np.average(person1.widthList)    
-            
-      
-            
+                            person1.width = np.average(person1.widthList)
+
+
+
             if len(person1.roiCurrent) == 0 and person1.nearEdge == True and person1.edgeCounter > 15:# and person1.meanShiftStateCounter > 120: #code to detect the person leaving the scene
                 if person1 in waitingList:
                     waitingList.remove(person1)
@@ -360,7 +349,7 @@ class People():
                 #print(person1.ID,'sent to lost people left edge of scene')
                 self.removePerson(person1.ID,self.listOfPeople)
                 personList.remove(person1)
-                continue #skip to next person            
+                continue #skip to next person
 
             if len(person1.roiCurrent) == 0  and person1.roiCounter > 1000 and person1.V > 120:# and person1.meanShiftStateCounter > 120: #code to detect the person leaving the scene
                 if person1 in waitingList:
@@ -370,17 +359,17 @@ class People():
                 self.removePerson(person1.ID,self.listOfPeople)
                 personList.remove(person1)
                 continue #skip to next person
-            
+
             if len(person1.roiCurrent) > 0 and flag == 1: #ROI is shared
                 person1.sharedROI = True
                 if person1.moving == True:
                     person1.lastGoodROI = person1.roiCurrent
                     #print('case1a in refresh, meanshift on last location, roi is shared')
-                    
+
                     cv2.rectangle(imgCopy, (person1.fX, person1.fY), (person1.fX+person1.fW, person1.fY+person1.fH), (0,128,255), 6)
-   
+
                     Tools.peopleMeanshift(img,imgCopy,person1,WIDTH,HEIGHT,term_crit,ROI_RESIZE_DIM)
-                    
+
                     if person1.fX < person1.roiCurrent[0]: # code to keep box from wondering
                         person1.fX = person1.roiCurrent[0]
                         #print('fixed box location 1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -389,16 +378,16 @@ class People():
                         a = Tools.np.array((person1.fX+person1.fW))
                         b = Tools.np.array((person1.roiCurrent[0]+person1.roiCurrent[2]))
                         dist = Tools.np.linalg.norm(a-b)
-                        
+
                         print(diff)
                         print(dist)
                         if person1.fX > person1.roiCurrent[0]+diff:
                             person1.fX = person1.fX - diff
-                            
+
                             #print('fixed box location 2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        elif person1.roiCurrent[0] == 0: 
+                        elif person1.roiCurrent[0] == 0:
                             person1.fX = person1.roiCurrent[0]
-                    
+
                     if person1.fY < person1.roiCurrent[1]: # code to keep box from wondering
                         person1.fY = person1.roiCurrent[1]
                         #print('fixed box location 3 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -407,19 +396,19 @@ class People():
                         a = Tools.np.array((person1.fY+person1.fH))
                         b = Tools.np.array((person1.roiCurrent[1]+person1.roiCurrent[3]))
                         dist = Tools.np.linalg.norm(a-b)
-                        
+
                         if person1.fY > person1.roiCurrent[1]+diff:
                             #person1.fY = person1.roiCurrent[1]
                             person1.fY = person1.fY - diff
                             #print('fixed box location 4 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        
+
                 elif person1.moving == False:
                     #print('case1b in refresh, meanshift on last location, roi is shared')
-                    
+
                     cv2.rectangle(imgCopy, (person1.fX, person1.fY), (person1.fX+person1.fW, person1.fY+person1.fH), (0,128,255), 6)
-   
+
                     Tools.peopleMeanshift(img,imgCopy,person1,WIDTH,HEIGHT,term_crit,ROI_RESIZE_DIM)
-                    
+
                     if person1.fX < person1.roiCurrent[0]: # code to keep box from wondering
                         person1.fX = person1.roiCurrent[0]
                         #print('fixed box location 1b !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -428,7 +417,7 @@ class People():
                         if person1.fX > person1.roiCurrent[0]+diff:
                             person1.fX = person1.fX - diff
                             #print('fixed box location 2b !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    
+
                     if person1.fY < person1.roiCurrent[1]: # code to keep box from wondering
                         person1.fY = person1.roiCurrent[1]
                         #print('fixed box location 3b !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -437,23 +426,23 @@ class People():
                         if person1.fY > person1.roiCurrent[1]+diff:
                             person1.fY = person1.fY - diff
                             #print('fixed box location 4b !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    
-                
-            
+
+
+
             elif len(person1.roiCurrent) == 0 and flag == 0:# : # do for every person with no BS roi
-                
+
                 person1.roiCounter += 1
                 if person1.edgeCounter == 0 and person1.moving == True:
                     #print('case2a in refresh, no current ROI, adjust box and meanshift')
-                    
-                    cv2.rectangle(imgCopy, (person1.fX, person1.fY), (person1.fX+person1.fW, person1.fY+person1.fH), (0,128,255), 6) 
+
+                    cv2.rectangle(imgCopy, (person1.fX, person1.fY), (person1.fX+person1.fW, person1.fY+person1.fH), (0,128,255), 6)
                     previousFX = person1.lastGoodROI[0]
                     previousFY = person1.lastGoodROI[1]
                     previousFW = person1.lastGoodROI[2]
                     previousFH = person1.lastGoodROI[3]
                     #person1.fX,person1.fY,person1.fW,person1.fH = person1.lastGoodROI[0],person1.lastGoodROI[1],person1.lastGoodROI[2],person1.lastGoodROI[3]
                     Tools.peopleMeanshift(img,imgCopy,person1,WIDTH,HEIGHT,term_crit,ROI_RESIZE_DIM)
-                    
+
                     if person1.fX < previousFX: # code to keep box from wondering
                         person1.fX = previousFX
                         #print('fixed box location 5 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -464,7 +453,7 @@ class People():
                             person1.fX = person1.fX - diff
                             #person1.fX = int(previousFX - .2*previousFW)
                             #print('fixed box location 6 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    
+
                     if person1.fY < previousFY: # code to keep box from wondering
                         person1.fY = previousFY
                         #print('fixed box location 7 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -473,18 +462,18 @@ class People():
                         if person1.fY > previousFY + diff:
                             person1.fY = person1.fY - diff
                         #person1.fY = int(previousFY - .1*previousFH)
-                            #print('fixed box location 8 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!') 
-                
+                            #print('fixed box location 8 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
                 elif person1.edgeCounter == 0 and person1.moving == False:
                     #print('case2b in refresh, no current ROI, adjust box and meanshift')
-                    
-                    cv2.rectangle(imgCopy, (person1.fX, person1.fY), (person1.fX+person1.fW, person1.fY+person1.fH), (0,128,255), 6) 
+
+                    cv2.rectangle(imgCopy, (person1.fX, person1.fY), (person1.fX+person1.fW, person1.fY+person1.fH), (0,128,255), 6)
                     previousFX = person1.lastROICurrent[0]
                     previousFY = person1.lastROICurrent[1]
                     previousFW = person1.lastROICurrent[2]
                     previousFH = person1.lastROICurrent[3]
                     Tools.peopleMeanshift(img,imgCopy,person1,WIDTH,HEIGHT,term_crit,ROI_RESIZE_DIM)
-                   
+
                     if person1.fX < previousFX: # code to keep box from wondering
                         person1.fX = previousFX
                         #print('fixed box location 9 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -493,7 +482,7 @@ class People():
                         if person1.fX > previousFX+diff:
                             person1.fX = person1.fX - diff
                             #print('fixed box location 10 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    
+
                     if person1.fY < previousFY: # code to keep box from wondering
                         person1.fY = previousFY
                         #print('fixed box location 11 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -501,48 +490,48 @@ class People():
                         diff = (person1.fY+person1.fH) - (previousFY+previousFH)
                         if person1.fY > previousFY+diff:
                             person1.fY = person1.fY - diff
-                            #print('fixed box location 12 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!') 
-                
-                    
+                            #print('fixed box location 12 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
+
                 elif person1.edgeCounter > 0:
                     previousFX = person1.lastROICurrent[0]
                     previousFY = person1.lastROICurrent[1]
                     previousFW = person1.lastROICurrent[2]
                     previousFH = person1.lastROICurrent[3]
                     Tools.peopleMeanshift(img,imgCopy,person1,WIDTH,HEIGHT,term_crit,ROI_RESIZE_DIM)
-                   
+
                     if person1.fX < previousFX or person1.fX+person1.fW > previousFX+previousFW: # code to keep box from wondering
                         person1.fX = previousFX
                         #print('fixed box location 13 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                   
+
                     if person1.fY < previousFY or person1.fY+person1.fH > previousFY+previousFH: # code to keep box from wondering
                         person1.fY = previousFY
                         #print('fixed box location 14 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    
+
             elif len(person1.roiCurrent) == 0 and flag == 1:# : # do for every person with no BS roi and shares previous roicurrent
                 person1.roiCounter += 1
                 #print('case2a in refresh, no current ROI, adjust box and meanshift')
-                cv2.rectangle(imgCopy, (person1.fX, person1.fY), (person1.fX+person1.fW, person1.fY+person1.fH), (0,128,255), 6) 
+                cv2.rectangle(imgCopy, (person1.fX, person1.fY), (person1.fX+person1.fW, person1.fY+person1.fH), (0,128,255), 6)
                 previousFX = person1.lastROICurrent[0]
                 previousFY = person1.lastROICurrent[1]
                 previousFW = person1.lastROICurrent[2]
                 previousFH = person1.lastROICurrent[3]
                 Tools.peopleMeanshift(img,imgCopy,person1,WIDTH,HEIGHT,term_crit,ROI_RESIZE_DIM)
-                                
+
                 if person1.fX < previousFX: # code to keep box from wondering
                     person1.fX = previousFX
                     #print('fixed box location 15 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 elif person1.fX+person1.fW > previousFX+previousFW :
                     person1.fX = previousFX
                     #print('fixed box location 16 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                
+
                 if person1.fY < previousFY: # code to keep box from wondering
                     person1.fY = previousFY
                     #print('fixed box location 17 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 elif person1.fY+person1.fH > previousFY+previousFH:
                     person1.fY = previousFY
-                    #print('fixed box location 18 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')         
-                    
+                    #print('fixed box location 18 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
             else: # person.roicurrent != [] and not shared
                 #print('case3 in refresh, person has current ROI, personbox = person.roi',person1.ID)
                 person1.sharedROI = False
@@ -553,9 +542,9 @@ class People():
                 person1.fY=box[1]
                 person1.fW=box[2]
                 person1.fH=box[3]
-                
-            person1.location.append([frameNumber,(person1.fX+(person1.fX+person1.fW))/2,(person1.fY+(person1.fY+person1.fH))/2])            
-            if frameNumber % 1 == 0:     
+
+            person1.location.append([frameNumber,(person1.fX+(person1.fX+person1.fW))/2,(person1.fY+(person1.fY+person1.fH))/2])
+            if frameNumber % 1 == 0:
                 if len(person1.kalmanLocation) > 0:
                     world = Tools.pixelToWorld((person1.kalmanLocation[-1][0],person1.kalmanLocation[-1][1]),homography) # for movement classification
                     worldArray = np.array([world[0],world[1]],ndmin = 2)
@@ -568,16 +557,16 @@ class People():
                 person1.edgeCounter +=1
             else:
                 person1.nearEdge = False
-            
+
             personList.remove(person1)
-            
-        
+
+
     def insertPerson(self,person,personList): # perhaps a better way to do this or it is unnessessary
         #print(len(personList),'person list length before')
         personList.append(person)
         personList.sort(key=lambda x: x.ID, reverse=False)
 
-        
+
     def removePerson(self,personID,personList):
         i = 0
         if len(personList) > 0: #remove correct person from person list
@@ -587,7 +576,7 @@ class People():
                     personList.remove(personList[-(i+1)])
                     break
                 i += 1
-    
+
     def getPerson(self,personID,personList):
         i = 0
         if len(personList) > 0: #remove correct person from person list
@@ -600,9 +589,9 @@ class People():
         else:
             return []
 
-# This class stores all information about a single person/object in the frame.     
+# This class stores all information about a single person/object in the frame.
 class Person():
-    
+
     def __init__(self,ID,fX,fY,fW,fH,visible,roiHist,height):
         self.ID=ID
         self.fX=fX
@@ -610,7 +599,7 @@ class Person():
         self.fW=fW
         self.fH=fH
         self.V=visible
-        self.location=[] 
+        self.location=[]
         self.kalmanLocation = []
         self.height = -1
         self.heightList = []
@@ -619,8 +608,8 @@ class Person():
         self.direction = []
         self.roiHist = roiHist
         self.roiHistList = [roiHist]
-        self.kalmanX = Tools.KalmanFilter(fX+(fW/2),kalmanGain = 0,covariance = 1.0,measurmentNoiseModel = 1.5,covarianceGain = 1.10,lastSensorValue = 0) 
-        self.kalmanY = Tools.KalmanFilter(fY+(fH/2),kalmanGain = 0,covariance = 1.0,measurmentNoiseModel = 1.5,covarianceGain = 1.10,lastSensorValue = 0) 
+        self.kalmanX = Tools.KalmanFilter(fX+(fW/2),kalmanGain = 0,covariance = 1.0,measurmentNoiseModel = 1.5,covarianceGain = 1.10,lastSensorValue = 0)
+        self.kalmanY = Tools.KalmanFilter(fY+(fH/2),kalmanGain = 0,covariance = 1.0,measurmentNoiseModel = 1.5,covarianceGain = 1.10,lastSensorValue = 0)
         self.roiCurrent = []
         self.lastROICurrent = []
         self.lastGoodROI = []
@@ -631,7 +620,7 @@ class Person():
         self.running = False                                #
         self.speed = -1                                  #
         self.clusterID = 0
-        self.leftObject = []                                #            #list of tuples with frame num and location of object                          
+        self.leftObject = []                                #            #list of tuples with frame num and location of object
         self.nearEdge = False                               #for detecting that the person is leaving the scene
         self.edgeCounter = 0                                #for detecting that the person is leaving the scene
         self.roiCounter = 0
@@ -642,15 +631,15 @@ class Person():
 
 
 class ClusterGroup(): #class to hold the individual groups of occluded people. consider renaming these classes
-    
+
     def __init__(self,label):
         self.index=0
         self.people=[]
         self.previousLen = 0
         self.label = label
         self.state = 1 #used to get rid of cluster that is empty
-        
-    
+
+
     def add(self, person):
         if len(person) <= 1:
             self.people.append(person)
@@ -658,7 +647,7 @@ class ClusterGroup(): #class to hold the individual groups of occluded people. c
         else:
             self.people.extend(person)
             self.index = self.index + len(person)
-    
+
     def remove(self, person):
         if len(person) <= 1:
             self.people.remove(person)
@@ -667,8 +656,8 @@ class ClusterGroup(): #class to hold the individual groups of occluded people. c
             for person2 in self.people:
                 if person2 in person:
                     self.people.remove(person)
-                    self.index= self.index - 1    
-                    
+                    self.index= self.index - 1
+
 
 
 def displayHistogram(histogram,frameNumber=-1,id=-1):

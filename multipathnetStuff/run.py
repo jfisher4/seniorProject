@@ -22,4 +22,4 @@ def run(directory,videoname):
             cv2.destroyAllWindows()
             break
 
-run("/home/robotics_group/multipathnet/deepmask/data/","000026_push.avi")
+run("/home/robotics_group/multipathnet/deepmask/data/","scenario1.mp4")

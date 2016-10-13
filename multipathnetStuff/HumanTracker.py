@@ -15,6 +15,7 @@ class HumanTracker:
     def __init__(self, directory, videoname):
         self.videoSave = Video()
         self.directory = directory
+        self.videoname = videoname
         self.cap = cv2.VideoCapture(directory+videoname)
         self.metadata = videoname.split("_")
         #self.homography = pickle.load( open( self.metadata[0]+"_H.p", "rb" ) )
@@ -32,7 +33,12 @@ class HumanTracker:
         cv2.imwrite(self.saveName, self.prvs)
         luaImg = np.reshape(self.prvs, (self.prvs.shape[2],self.prvs.shape[0],self.prvs.shape[1]))
         luaImg = torch.fromNumpyArray(luaImg)
+        frame = Frame()
         probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+        for maskNum in range(masks.shape[0]):
+            dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNums])
+            frame.addImageObject(dataObj)
+        self.videoSave.addFrame(frame)
         tmpImg = tmpImg.asNumpyArray()
         self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
         print(self.ROI_RESIZE_DIM,"DIM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -46,6 +52,9 @@ class HumanTracker:
             print("Exiting Program End of Video...")
             self.cap.release()
             cv2.destroyAllWindows()
+            pickle.dump(self.videoSave, open( str(self.videoname)+".p", "wb" )
+            #pickle.dump(imagePoints, open( "05282015B5_ImgPoints.p", "wb" ) )
+            #imagePoints=pickle.load( open( "imagePoints.p", "rb" ) )
             return(None, 0) #return 0 to toggle active off
 
         self.frameNumber += 1

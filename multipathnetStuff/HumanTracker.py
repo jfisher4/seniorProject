@@ -52,7 +52,7 @@ class HumanTracker:
             print("Exiting Program End of Video...")
             self.cap.release()
             cv2.destroyAllWindows()
-            pickle.dump(self.videoSave, open( str(self.videoname)+".p", "wb" )
+            pickle.dump(self.videoSave, open( str(self.videoname)+".p", "wb" ))
             #pickle.dump(imagePoints, open( "05282015B5_ImgPoints.p", "wb" ) )
             #imagePoints=pickle.load( open( "imagePoints.p", "rb" ) )
             return(None, 0) #return 0 to toggle active off

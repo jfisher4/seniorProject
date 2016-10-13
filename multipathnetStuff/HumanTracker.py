@@ -35,9 +35,15 @@ class HumanTracker:
         luaImg = torch.fromNumpyArray(luaImg)
         frame = Frame()
         probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
-        for maskNum in range(masks.shape[0]):
-            dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNums])
-            frame.addImageObject(dataObj)
+        masks = masks.asNumpyArray()
+        probs = probs.asNumpyArray()
+        print(labels)
+        #labels2 = labels.asNumpyArray()
+        print( type(masks),len(masks))
+        if masks != None:
+            for maskNum in range(masks.shape[0]):
+                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
+                frame.addImageObject(dataObj)
         self.videoSave.addFrame(frame)
         tmpImg = tmpImg.asNumpyArray()
         self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
@@ -74,10 +80,12 @@ class HumanTracker:
         probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
         #print('W', WIDTH, 'H', HEIGHT)
         masks = masks.asNumpyArray()
+        probs = probs.asNumpyArray()
+        #labels = labels.asNumpyArray()
         frame = Frame()
         for maskNum in range(masks.shape[0]):
 
-            dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNums])
+            dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
             frame.addImageObject(dataObj)
 
             if labels[maskNum] == "person":

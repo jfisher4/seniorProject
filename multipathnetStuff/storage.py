@@ -34,5 +34,5 @@ class ImageObject:
         return self.prob
 
     def getMask(self):
-    '''Gets the mask, a NxN array containing 1's and 0's'''
+    """Gets the mask, a NxN array containing 1's and 0's"""
         return self.mask

@@ -33,25 +33,31 @@ class HumanTracker:
         _, self.prvs = self.cap.read()
         # code to determine the output frame size
         cv2.imwrite(self.saveName, self.prvs)
-        sleep(0.05)
+        sleep(0.05) #this doesnt help
         luaImg = np.reshape(self.prvs, (self.prvs.shape[2],self.prvs.shape[0],self.prvs.shape[1]))
         luaImg = torch.fromNumpyArray(luaImg)
         frame = Frame()
-        probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
-        masks = masks.asNumpyArray()
-        probs = probs.asNumpyArray()
-        print(labels)
-        #labels2 = labels.asNumpyArray()
-        print( type(masks),len(masks))
-        if masks != None:
-            for maskNum in range(masks.shape[0]):
-                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
-                frame.addImageObject(dataObj)
-        self.videoSave.addFrame(frame)
-        tmpImg = tmpImg.asNumpyArray()
-        self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
-        print(self.ROI_RESIZE_DIM,"DIM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-
+        try:
+            probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+            masks = masks.asNumpyArray()
+            probs = probs.asNumpyArray()
+            print(labels)
+            #labels2 = labels.asNumpyArray()
+            print( type(masks),len(masks))
+            if masks != None:
+                for maskNum in range(masks.shape[0]):
+                    dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
+                    frame.addImageObject(dataObj)
+            self.videoSave.addFrame(frame)
+            tmpImg = tmpImg.asNumpyArray()
+            self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
+            print(self.ROI_RESIZE_DIM,"DIM")
+        except:
+            dataObj = ImageObject(None, None, None)
+            frame.addImageObject(dataObj)
+            self.videoSave.addFrame(frame)
+            self.ROI_RESIZE_DIM = (600,337)
+            print("LUA object crashed on image detect, init resize dim to manual setting")
 
 
     def readAndTrack(self):
@@ -76,41 +82,40 @@ class HumanTracker:
 
         cv2.imwrite(self.saveName, img)
         sleep(0.05)
-        cv2.imshow("image",img)
-        print(img.shape,"img.shape")
-        print(self.ROI_RESIZE_DIM,"DIM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        cv2.imshow("image",img)      
         luaImg = np.reshape(img, (img.shape[2],img.shape[0],img.shape[1]))#convert the shape to the same as lua load image, but there is still somethign wrong with the data
         luaImg = torch.fromNumpyArray(luaImg)
-
-        #print('framenumber ' + str(self.frameNumber))
-        probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
-        #print('W', WIDTH, 'H', HEIGHT)
-        masks = masks.asNumpyArray()
-        probs = probs.asNumpyArray()
-        #labels = labels.asNumpyArray()
         frame = Frame()
-        for maskNum in range(masks.shape[0]):
+        #print('framenumber ' + str(self.frameNumber))
+        try:
+            probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+            #print('W', WIDTH, 'H', HEIGHT)
+            masks = masks.asNumpyArray()
+            probs = probs.asNumpyArray()
+            #labels = labels.asNumpyArray()
 
-            dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
+            for maskNum in range(masks.shape[0]):
+
+                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
+                frame.addImageObject(dataObj)
+
+                if labels[maskNum] == "person":
+                    currentMask = masks[maskNum].reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
+                    #need to convert the mask to range of 0-255 for imshow to work
+                    currentMask = cv2.normalize(currentMask, None, 0, 255, cv2.NORM_MINMAX)
+
+                    #get color histogram from mask
+                    hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
+                    #show the histogram
+                    displayHistogram(hist,self.frameNumber,maskNum)
+
+                    #match to existing person or create new person and give attribute mask to the person object
+                    cv2.imshow('Masks'+str(maskNum),currentMask)
+        except:
+            dataObj = ImageObject(None, None, None)
             frame.addImageObject(dataObj)
-
-            if labels[maskNum] == "person":
-                currentMask = masks[maskNum].reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
-                #need to convert the mask to range of 0-255 for imshow to work
-                currentMask = cv2.normalize(currentMask, None, 0, 255, cv2.NORM_MINMAX)
-
-                #get color histogram from mask
-                hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
-                #show the histogram
-                displayHistogram(hist,self.frameNumber,maskNum)
-
-
-
-                #match to existing person or create new person and give attribute mask to the person object
-                cv2.imshow('Masks'+str(maskNum),currentMask)
+            print("LUA object crashed on image detect!!!!!!!!!!!!!!!!!1111")
         self.videoSave.addFrame(frame)
-        print(type(self.videoSave))
-        print(len(self.videoSave.getFrames()), 'length of get frames of video object every frame!!!!!!!!!')
         imgDisplay = img.copy()
         k = cv2.waitKey(2) & 0xFF
         if k == ord('p'):
@@ -131,12 +136,12 @@ class HumanTracker:
             self.cap.release()
             cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off
-        elif self.frameNumber == 10000: #for testing only to pause at a certain frame
-            timeEnd = time.time()
-            totalTime = timeEnd - timeStart
-            print(totalTime,'totalTime')
-        elif self.frameNumber == 10: #for testing only to pause at a certain frame
-            return (None,2)
+        #elif self.frameNumber == 10000: #for testing only to pause at a certain frame
+            #timeEnd = time.time()
+            #totalTime = timeEnd - timeStart
+            #print(totalTime,'totalTime')
+        #elif self.frameNumber == 10: #for testing only to pause at a certain frame
+            #return (None,2)
         return (None,1) #return 1 to stay active
 
 class People():

@@ -37,27 +37,29 @@ class HumanTracker:
         luaImg = np.reshape(self.prvs, (self.prvs.shape[2],self.prvs.shape[0],self.prvs.shape[1]))
         luaImg = torch.fromNumpyArray(luaImg)
         frame = Frame()
+        probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+        #print(masks[:],"masks info")
+        #if masks[:] != None:
         try:
-            probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
             masks = masks.asNumpyArray()
             probs = probs.asNumpyArray()
-            print(labels)
+            print(labels[:],"labels in python")
             #labels2 = labels.asNumpyArray()
-            print( type(masks),len(masks))
-            if masks != None:
-                for maskNum in range(masks.shape[0]):
-                    dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
-                    frame.addImageObject(dataObj)
+            #print( type(masks),len(masks))
+
+            for maskNum in range(masks.shape[0]):
+                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
+                frame.addImageObject(dataObj)
             self.videoSave.addFrame(frame)
             tmpImg = tmpImg.asNumpyArray()
             self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
-            print(self.ROI_RESIZE_DIM,"DIM")
+            #print(self.ROI_RESIZE_DIM,"DIM")
         except:
             dataObj = ImageObject(None, None, None)
             frame.addImageObject(dataObj)
             self.videoSave.addFrame(frame)
             self.ROI_RESIZE_DIM = (600,337)
-            print("LUA object crashed on image detect, init resize dim to manual setting")
+            print("LUA object could not finish due to unknown problem when there are no detections")
 
 
     def readAndTrack(self):
@@ -87,18 +89,22 @@ class HumanTracker:
         luaImg = torch.fromNumpyArray(luaImg)
         frame = Frame()
         #print('framenumber ' + str(self.frameNumber))
+        probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+        #if masks[:] != None:
         try:
-            probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+            #for label in labels:
+            print(labels[0], "label test")
             #print('W', WIDTH, 'H', HEIGHT)
             masks = masks.asNumpyArray()
             probs = probs.asNumpyArray()
             #labels = labels.asNumpyArray()
-
+            print(labels[:],"labels in python")
             for maskNum in range(masks.shape[0]):
 
                 dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
                 frame.addImageObject(dataObj)
-
+                if probs[maskNum] > .1:
+                    print("Success!!")
                 if labels[maskNum] == "person":
                     currentMask = masks[maskNum].reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
                     #need to convert the mask to range of 0-255 for imshow to work
@@ -114,7 +120,7 @@ class HumanTracker:
         except:
             dataObj = ImageObject(None, None, None)
             frame.addImageObject(dataObj)
-            print("LUA object crashed on image detect!!!!!!!!!!!!!!!!!1111")
+            print("LUA object could not finish due to unknown problem when there are no detections")
         self.videoSave.addFrame(frame)
         imgDisplay = img.copy()
         k = cv2.waitKey(2) & 0xFF
@@ -123,16 +129,16 @@ class HumanTracker:
             return (None,2) #return 2 for paused
         elif k == ord('q'):
             print("Exiting Program...")
-            print(len(self.videoSave.getFrames()), 'length of get frames of video object before')
-            f = gzip.open( str(self.videoname)+".pklz", "w" )
+            #print(len(self.videoSave.getFrames()), 'length of get frames of video object before')
+            #f = gzip.open( str(self.videoname)+".pklz", "w" )
             #f = open( str(self.videoname)+".pkl", "w" )
-            pickle.dump(self.videoSave, f)
-            f.close()
-            f2 = gzip.open(str(self.videoname)+".pklz","r")
+            #pickle.dump(self.videoSave, f)
+            #f.close()
+            #f2 = gzip.open(str(self.videoname)+".pklz","r")
             #f2 = open(str(self.videoname)+".pkl","r")
-            newVideoObj = pickle.load(f2)
-            f2.close()
-            print(len(newVideoObj.getFrames()), 'length of get frames of restored video object')
+            #newVideoObj = pickle.load(f2)
+            #f2.close()
+            #print(len(newVideoObj.getFrames()), 'length of get frames of restored video object')
             self.cap.release()
             cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off

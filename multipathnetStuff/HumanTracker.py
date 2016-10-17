@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import lutorpy as lua
 import pickle
+import gzip
+from time import sleep
 import time
 from storage import *
 #import os
@@ -31,6 +33,7 @@ class HumanTracker:
         _, self.prvs = self.cap.read()
         # code to determine the output frame size
         cv2.imwrite(self.saveName, self.prvs)
+        sleep(0.05)
         luaImg = np.reshape(self.prvs, (self.prvs.shape[2],self.prvs.shape[0],self.prvs.shape[1]))
         luaImg = torch.fromNumpyArray(luaImg)
         frame = Frame()
@@ -58,7 +61,9 @@ class HumanTracker:
             print("Exiting Program End of Video...")
             self.cap.release()
             cv2.destroyAllWindows()
-            pickle.dump(self.videoSave, open( str(self.videoname)+".p", "wb" ))
+            f = gzip.open( str(self.videoname)+".pklz", "w" )
+            pickle.dump(self.videoSave, f)
+            f.close()
             #pickle.dump(imagePoints, open( "05282015B5_ImgPoints.p", "wb" ) )
             #imagePoints=pickle.load( open( "imagePoints.p", "rb" ) )
             return(None, 0) #return 0 to toggle active off
@@ -70,6 +75,7 @@ class HumanTracker:
 
 
         cv2.imwrite(self.saveName, img)
+        sleep(0.05)
         cv2.imshow("image",img)
         print(img.shape,"img.shape")
         print(self.ROI_RESIZE_DIM,"DIM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -103,6 +109,8 @@ class HumanTracker:
                 #match to existing person or create new person and give attribute mask to the person object
                 cv2.imshow('Masks'+str(maskNum),currentMask)
         self.videoSave.addFrame(frame)
+        print(type(self.videoSave))
+        print(len(self.videoSave.getFrames()), 'length of get frames of video object every frame!!!!!!!!!')
         imgDisplay = img.copy()
         k = cv2.waitKey(2) & 0xFF
         if k == ord('p'):
@@ -110,6 +118,16 @@ class HumanTracker:
             return (None,2) #return 2 for paused
         elif k == ord('q'):
             print("Exiting Program...")
+            print(len(self.videoSave.getFrames()), 'length of get frames of video object before')
+            f = gzip.open( str(self.videoname)+".pklz", "w" )
+            #f = open( str(self.videoname)+".pkl", "w" )
+            pickle.dump(self.videoSave, f)
+            f.close()
+            f2 = gzip.open(str(self.videoname)+".pklz","r")
+            #f2 = open(str(self.videoname)+".pkl","r")
+            newVideoObj = pickle.load(f2)
+            f2.close()
+            print(len(newVideoObj.getFrames()), 'length of get frames of restored video object')
             self.cap.release()
             cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off
@@ -117,7 +135,7 @@ class HumanTracker:
             timeEnd = time.time()
             totalTime = timeEnd - timeStart
             print(totalTime,'totalTime')
-        elif self.frameNumber == 100: #for testing only to pause at a certain frame
+        elif self.frameNumber == 10: #for testing only to pause at a certain frame
             return (None,2)
         return (None,1) #return 1 to stay active
 

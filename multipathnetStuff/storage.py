@@ -1,5 +1,5 @@
 
-class Video:
+class Video(object):
     def __init__(self):
         self._frames = []
 
@@ -10,7 +10,7 @@ class Video:
     def getFrames(self):
         return self._frames[:]
 
-class Frame:
+class Frame(object):
     def __init__(self):
         self._imgObjs = []
 
@@ -21,7 +21,7 @@ class Frame:
     def getImageObjects(self):
         return self._imgObjs[:]
 
-class ImageObject:
+class ImageObject(object):
     def __init__(self, label, prob, mask):
         self.label = label
         self.prob = prob

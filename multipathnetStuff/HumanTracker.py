@@ -18,96 +18,39 @@ class HumanTracker:
         self.frameNumber = 0
         f = gzip.open(str(self.videoname)+".pklz","r")
         self.videoObj = pickle.load(f)
+        self.videoObjFrames = self.videoObj.getFrames()
+        self.videoObjCurrentObjs = None
         f.close()
         print(len(videoObj.getFrames()), 'length of get frames of restored video object')
         self.trackedPeople = People()
-        _, self.prvs = self.cap.read()
+        #_, self.prvs = self.cap.read()
         self.ROI_RESIZE_DIM = (600,337)
             
-        if masks != None:
-            for maskNum in range(masks.shape[0]):
-                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
-                frame.addImageObject(dataObj)
-            self.videoSave.addFrame(frame)
-            tmpImg = tmpImg.asNumpyArray()
-            self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
-            print(self.ROI_RESIZE_DIM,"DIM")
-        
-            dataObj = ImageObject(None, None, None)
-            frame.addImageObject(dataObj)
-            self.videoSave.addFrame(frame)
-            
-            print("LUA object crashed on image detect, init resize dim to manual setting")
-
-
     def readAndTrack(self):
         time1 = time.time()
+        
         ret,img = self.cap.read()
         if not ret: #allow for a graceful exit when the video ends
             print("Exiting Program End of Video...")
             self.cap.release()
             cv2.destroyAllWindows()
-            f = gzip.open( str(self.videoname)+".pklz", "w" )
-            pickle.dump(self.videoSave, f)
-            f.close()
-            #pickle.dump(imagePoints, open( "05282015B5_ImgPoints.p", "wb" ) )
-            #imagePoints=pickle.load( open( "imagePoints.p", "rb" ) )
             return(None, 0) #return 0 to toggle active off
-
-        self.frameNumber += 1
-        height, width = img.shape[:2]
-        #img = cv2.resize(img,(2*width, 2*height))
-        #resize image to whatever lua needs
-
-
-        cv2.imwrite(self.saveName, img)
-        sleep(0.05)
-        cv2.imshow("image",img)      
-        luaImg = np.reshape(img, (img.shape[2],img.shape[0],img.shape[1]))#convert the shape to the same as lua load image, but there is still somethign wrong with the data
-        luaImg = torch.fromNumpyArray(luaImg)
-        frame = Frame()
-        #print('framenumber ' + str(self.frameNumber))
-        try:
-            probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
-            #print('W', WIDTH, 'H', HEIGHT)
-            masks = masks.asNumpyArray()
-            probs = probs.asNumpyArray()
-            #labels = labels.asNumpyArray()
-
+        self.videoObjCurrentObjs = self.videoObjFrames[self.frameNumber].getImageObjects()
+        if self.videoObjCurrentObjs != None:
             for maskNum in range(masks.shape[0]):
-
-                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
-                frame.addImageObject(dataObj)
-
-                if labels[maskNum] == "person":
-                    currentMask = masks[maskNum].reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
-                    #need to convert the mask to range of 0-255 for imshow to work
-                    currentMask = cv2.normalize(currentMask, None, 0, 255, cv2.NORM_MINMAX)
-
-                    #get color histogram from mask
-                    hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
-                    #show the histogram
-                    displayHistogram(hist,self.frameNumber,maskNum)
-
-                    #match to existing person or create new person and give attribute mask to the person object
-                    cv2.imshow('Masks'+str(maskNum),currentMask)
-        except:
-            dataObj = ImageObject(None, None, None)
-            frame.addImageObject(dataObj)
-            print("LUA object crashed on image detect!!!!!!!!!!!!!!!!!1111")
-        self.videoSave.addFrame(frame)
-        imgDisplay = img.copy()
+        
+        height, width = img.shape[:2]
+        
+        cv2.imshow("image",cv2.resize(img,self.ROI_RESIZE_DIM))      
+        
+        print('framenumber ' + str(self.frameNumber))
+                
         k = cv2.waitKey(2) & 0xFF
         if k == ord('p'):
             print("Pausing...")
             return (None,2) #return 2 for paused
         elif k == ord('q'):
             print("Exiting Program...")
-            print(len(self.videoSave.getFrames()), 'length of get frames of video object before')
-            f = gzip.open( str(self.videoname)+".pklz", "w" )
-            #f = open( str(self.videoname)+".pkl", "w" )
-            pickle.dump(self.videoSave, f)
-            f.close()
             
             self.cap.release()
             cv2.destroyAllWindows()

@@ -22,7 +22,7 @@ class Frame(object):
         return self._imgObjs[:]
 
 class ImageObject(object):
-    def __init__(self, label, prob, mask):
+    def __init__(self, label=None, prob=None, mask=None):
         self.label = label
         self.prob = prob
         self.mask = mask

@@ -25,4 +25,4 @@ def run(directory,videoname):
 
 #for i in range(len(goodVideoList)):
     #run("/home/robotics_group/multipathnet/deepmask/data/",goodVideoList[i])
-run("C:\\Users\\gifis\\Documents\\seniorProject\\multipathnetStuff\\Dataset\\","00028.MTS")
+run("C:\\Users\\gifis\\Documents\\seniorProject\\multipathnetStuff\\","00028.MTS")

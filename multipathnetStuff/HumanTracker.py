@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import pickle
 import gzip
-from time import sleep
 import time
 from storage import *
 import os
@@ -16,12 +15,13 @@ class HumanTracker:
         self.cap = cv2.VideoCapture(directory+videoname)
         self.metadata = videoname.split("_")
         self.frameNumber = 0
-        f = gzip.open(str(self.videoname)+".pklz","r")
+        f = gzip.open(directory+videoname+".pklz","rb")
         self.videoObj = pickle.load(f)
-        self.videoObjFrames = self.videoObj.getFrames()
+        print(self.videoObj)
+        #self.videoObjFrames = self.videoObj.getFrames()
         self.videoObjCurrentObjs = None
         f.close()
-        print(len(videoObj.getFrames()), 'length of get frames of restored video object')
+        print(len(self.videoObj.getFrames()), 'length of get frames of restored video object')
         self.trackedPeople = People()
         #_, self.prvs = self.cap.read()
         self.ROI_RESIZE_DIM = (600,337)
@@ -35,16 +35,18 @@ class HumanTracker:
             self.cap.release()
             cv2.destroyAllWindows()
             return(None, 0) #return 0 to toggle active off
-        self.videoObjCurrentObjs = self.videoObjFrames[self.frameNumber].getImageObjects()
-        if self.videoObjCurrentObjs != None:
-            for maskNum in range(masks.shape[0]):
-        
+        self.videoObjCurrentObjs = self.videoObj.getFrames()[self.frameNumber].getImageObjects()
+        if self.videoObjCurrentObjs[0].getMask() != None:
+            for i in range(len(self.videoObjCurrentObjs)):
+                cv2.imshow("mask_"+str(i),self.videoObjCurrentObjs[i].getMask())
+        else:
+            print("Empty frame objects this frame")
         height, width = img.shape[:2]
         
-        cv2.imshow("image",cv2.resize(img,self.ROI_RESIZE_DIM))      
+        cv2.imshow("frame_"+str(self.frameNumber),cv2.resize(img,self.ROI_RESIZE_DIM))      
         
         print('framenumber ' + str(self.frameNumber))
-                
+        self.frameNumber += 1     
         k = cv2.waitKey(2) & 0xFF
         if k == ord('p'):
             print("Pausing...")

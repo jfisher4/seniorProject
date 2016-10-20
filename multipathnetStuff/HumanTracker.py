@@ -1,16 +1,11 @@
 import cv2
 import numpy as np
-import lutorpy as lua
 import pickle
 import gzip
 from time import sleep
 import time
 from storage import *
-#import os
-#import the lua script
-require("demo")
-
-lua.LuaRuntime(zero_based_index=False)
+import os
 
 class HumanTracker:
 
@@ -20,43 +15,28 @@ class HumanTracker:
         self.videoname = videoname
         self.cap = cv2.VideoCapture(directory+videoname)
         self.metadata = videoname.split("_")
-        #self.homography = pickle.load( open( self.metadata[0]+"_H.p", "rb" ) )
-        #self.rotationMatrix = pickle.load(open( self.metadata[0]+"_rotM.p","rb"))
-        #self.cameraPosition = Tools.cameraPosition(self.rotationMatrix, pickle.load( open( self.metadata[0]+"_tvec.p", "rb" ) ))
         self.frameNumber = 0
-        self.saveName="/home/robotics_group/multipathnet/deepmask/data/testTmp.jpeg" # save the file so that we can load it into lua, hopefully we can find a better way
-        self.multiPathObject = MultiPathNet
-        #init the object
-        self.multiPathObject.init(self.multiPathObject)
-        self.multiPathObject.start(self.multiPathObject)
+        f = gzip.open(str(self.videoname)+".pklz","r")
+        self.videoObj = pickle.load(f)
+        f.close()
+        print(len(videoObj.getFrames()), 'length of get frames of restored video object')
         self.trackedPeople = People()
         _, self.prvs = self.cap.read()
-        # code to determine the output frame size
-        cv2.imwrite(self.saveName, self.prvs)
-        sleep(0.05) #this doesnt help
-        luaImg = np.reshape(self.prvs, (self.prvs.shape[2],self.prvs.shape[0],self.prvs.shape[1]))
-        luaImg = torch.fromNumpyArray(luaImg)
-        frame = Frame()
-        try:
-            probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
-            masks = masks.asNumpyArray()
-            probs = probs.asNumpyArray()
-            print(labels)
-            #labels2 = labels.asNumpyArray()
-            print( type(masks),len(masks))
-            if masks != None:
-                for maskNum in range(masks.shape[0]):
-                    dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
-                    frame.addImageObject(dataObj)
+        self.ROI_RESIZE_DIM = (600,337)
+            
+        if masks != None:
+            for maskNum in range(masks.shape[0]):
+                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
+                frame.addImageObject(dataObj)
             self.videoSave.addFrame(frame)
             tmpImg = tmpImg.asNumpyArray()
             self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
             print(self.ROI_RESIZE_DIM,"DIM")
-        except:
+        
             dataObj = ImageObject(None, None, None)
             frame.addImageObject(dataObj)
             self.videoSave.addFrame(frame)
-            self.ROI_RESIZE_DIM = (600,337)
+            
             print("LUA object crashed on image detect, init resize dim to manual setting")
 
 
@@ -128,11 +108,7 @@ class HumanTracker:
             #f = open( str(self.videoname)+".pkl", "w" )
             pickle.dump(self.videoSave, f)
             f.close()
-            f2 = gzip.open(str(self.videoname)+".pklz","r")
-            #f2 = open(str(self.videoname)+".pkl","r")
-            newVideoObj = pickle.load(f2)
-            f2.close()
-            print(len(newVideoObj.getFrames()), 'length of get frames of restored video object')
+            
             self.cap.release()
             cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off

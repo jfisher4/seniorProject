@@ -2,6 +2,8 @@
 class Video(object):
     def __init__(self):
         self._frames = []
+        
+        print(self._frames,'test in Video')
 
     def addFrame(self, frame):
         if type(frame) is Frame:
@@ -13,6 +15,8 @@ class Video(object):
 class Frame(object):
     def __init__(self):
         self._imgObjs = []
+       
+        print(self._imgObjs,'test in Frame')
 
     def addImageObject(self, imgObj):
         if type(imgObj) is ImageObject:
@@ -22,10 +26,11 @@ class Frame(object):
         return self._imgObjs[:]
 
 class ImageObject(object):
-    def __init__(self, label=None, prob=None, mask=None):
+    def __init__(self,label,prob,mask):
         self.label = label
         self.prob = prob
         self.mask = mask
+        print('test in ImageObject')
 
     def getLabel(self):
         return self.label

@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+#import lutorpy as lua
 import pickle
 import gzip
 import time
@@ -9,13 +10,13 @@ import os
 class HumanTracker:
 
     def __init__(self, directory, videoname):
-        self.videoSave = Video()
         self.directory = directory
         self.videoname = videoname
         self.cap = cv2.VideoCapture(directory+videoname)
         self.metadata = videoname.split("_")
         self.frameNumber = 0
         f = gzip.open(directory+videoname+".pklz","rb")
+        print(f)
         self.videoObj = pickle.load(f)
         print(self.videoObj)
         #self.videoObjFrames = self.videoObj.getFrames()

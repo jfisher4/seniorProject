@@ -121,7 +121,7 @@ class HumanTracker:
                     #match to existing person or create new person and give attribute mask to the person object
                     cv2.imshow('Masks'+str(maskNum),currentMask)
         except:
-            dataObj = ImageObject(None, None, None)
+            dataObj = ImageObject(None, None, None, None)
             frame.addImageObject(dataObj)
             print("LUA object could not finish due to unknown problem when there are no detections")
         self.videoSave.addFrame(frame)

@@ -1,30 +1,27 @@
 
-class Video:
+class Video(object):
     def __init__(self):
         self.frames = []
 
     def addFrame(self, frame):
-        #if type(frame) is Frame:
-            #print('test in Video Class!!!#######')
-        self.frames.append(frame)
-        #else:
-            #print(type(frame),'test in Video Class ERROR !!!!!')
+        if type(frame) is Frame:
+            self.frames.append(frame)
 
     def getFrames(self):
         return self.frames[:]
 
-class Frame:
+class Frame(object):
     def __init__(self):
         self.imgObjs = []
 
     def addImageObject(self, imgObj):
-        #if type(imgObj) is ImageObject:
-        self.imgObjs.append(imgObj)
+        if type(imgObj) is ImageObject:
+            self.imgObjs.append(imgObj)
 
     def getImageObjects(self):
         return self.imgObjs[:]
 
-class ImageObject:
+class ImageObject(object):
     def __init__(self, label, prob, mask, bBox):
         self.label = label
         self.prob = prob

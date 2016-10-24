@@ -77,17 +77,17 @@ MultiPathNet.processImg = function (self, img)
     --print(prob,"prob in lua")
     --print(maxes,"maxes in lua", maxes:size(1))
     flag = 0;
-    for i = 1,maxes:size(1) do
+    --for i = 1,maxes:size(1) do
         --print(maxes[i], "maxes i")
-        if maxes[i][1] ~= 1 then
-            flag = 1 --flag equal 1 means good to continue
-            break
-        end
-    end
-    if flag == 0 then -- return empty tables if this occurs
-        print("returning no detections due to error in lua")
-        return {}, {}, {}, img2
-    end
+        --if maxes[i][1] ~= 1 then
+            --flag = 1 --flag equal 1 means good to continue
+            --break
+        --end
+    --end
+    --if flag == 0 then -- return empty tables if this occurs
+        --print("returning no detections due to error in lua")
+        --return {}, {}, {}, img2
+    --end
     -- remove background detections
     --print("test4")
     idx = maxes:squeeze():gt(1):cmul(prob:gt(self.thr)):nonzero():select(2,1)
@@ -120,5 +120,5 @@ MultiPathNet.processImg = function (self, img)
     end
 
     print('|multipathnet detection done')
-    return prob, names, masks, img2
+    return prob, names, masks, bboxes
 end

@@ -37,25 +37,27 @@ class HumanTracker:
         luaImg = np.reshape(self.prvs, (self.prvs.shape[2],self.prvs.shape[0],self.prvs.shape[1]))
         luaImg = torch.fromNumpyArray(luaImg)
         frame = Frame()
-        probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+
         #print(masks[:],"masks info")
         #if masks[:] != None:
         try:
+            probs, labels, masks, bboxes = self.multiPathObject.processImg(self.multiPathObject,luaImg)
             masks = masks.asNumpyArray()
             probs = probs.asNumpyArray()
+            bboxes = bboxes.asNumpyArray()
             print(labels[:],"labels in python")
             #labels2 = labels.asNumpyArray()
             #print( type(masks),len(masks))
 
             for maskNum in range(masks.shape[0]):
-                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
+                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum], bboxes[maskNum])
                 frame.addImageObject(dataObj)
             self.videoSave.addFrame(frame)
             tmpImg = tmpImg.asNumpyArray()
             self.ROI_RESIZE_DIM = (tmpImg.shape[2],tmpImg.shape[1])
             #print(self.ROI_RESIZE_DIM,"DIM")
         except:
-            dataObj = ImageObject(None, None, None)
+            dataObj = ImageObject(None, None, None, None)
             frame.addImageObject(dataObj)
             self.videoSave.addFrame(frame)
             self.ROI_RESIZE_DIM = (600,337)
@@ -69,7 +71,7 @@ class HumanTracker:
             print("Exiting Program End of Video...")
             self.cap.release()
             cv2.destroyAllWindows()
-            f = gzip.open( str(self.videoname)+".pklz", "w" )
+            f = gzip.open( str(self.videoname)+".pklz", "wb" )
             pickle.dump(self.videoSave, f)
             f.close()
             #pickle.dump(imagePoints, open( "05282015B5_ImgPoints.p", "wb" ) )
@@ -89,19 +91,20 @@ class HumanTracker:
         luaImg = torch.fromNumpyArray(luaImg)
         frame = Frame()
         #print('framenumber ' + str(self.frameNumber))
-        probs, labels, masks, tmpImg = self.multiPathObject.processImg(self.multiPathObject,luaImg)
+
         #if masks[:] != None:
         try:
-            #for label in labels:
-            print(labels[0], "label test")
-            #print('W', WIDTH, 'H', HEIGHT)
+            probs, labels, masks, bboxes = self.multiPathObject.processImg(self.multiPathObject,luaImg)
             masks = masks.asNumpyArray()
             probs = probs.asNumpyArray()
+            bboxes = bboxes.asNumpyArray()
+
+
             #labels = labels.asNumpyArray()
             print(labels[:],"labels in python")
             for maskNum in range(masks.shape[0]):
 
-                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum])
+                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum], bboxes[maskNum])
                 frame.addImageObject(dataObj)
                 if probs[maskNum] > .1:
                     print("Success!!")
@@ -135,7 +138,7 @@ class HumanTracker:
             #pickle.dump(self.videoSave, f)
             #f.close()
             #f2 = gzip.open(str(self.videoname)+".pklz","r")
-            #f2 = open(str(self.videoname)+".pkl","r")
+            #f2 = open(str(self.videoname)+".pkl","rb")
             #newVideoObj = pickle.load(f2)
             #f2.close()
             #print(len(newVideoObj.getFrames()), 'length of get frames of restored video object')

@@ -43,7 +43,7 @@ class HumanTracker:
             print("Empty frame objects this frame")
         height, width = img.shape[:2]
         
-        cv2.imshow("frame_"+str(self.frameNumber),cv2.resize(img,self.ROI_RESIZE_DIM))      
+        cv2.imshow("frame",cv2.resize(img,self.ROI_RESIZE_DIM))      
         
         print('framenumber ' + str(self.frameNumber))
         self.frameNumber += 1     

@@ -1,42 +1,41 @@
-
 class Video(object):
     def __init__(self):
-        self.frames = []
+        self._frames = []
 
     def addFrame(self, frame):
         if type(frame) is Frame:
-            self.frames.append(frame)
+            self._frames.append(frame)
 
     def getFrames(self):
-        return self.frames[:]
+        return self._frames[:]
 
 class Frame(object):
     def __init__(self):
-        self.imgObjs = []
+        self._imgObjs = []
 
     def addImageObject(self, imgObj):
         if type(imgObj) is ImageObject:
-            self.imgObjs.append(imgObj)
+            self._imgObjs.append(imgObj)
 
     def getImageObjects(self):
-        return self.imgObjs[:]
+        return self._imgObjs[:]
 
 class ImageObject(object):
     def __init__(self, label, prob, mask, bBox):
-        self.label = label
-        self.prob = prob
-        self.mask = mask
-        self.bBox = bBox
+        self._label = label
+        self._prob = prob
+        self._mask = mask
+        self._bBox = bBox
 
     def getLabel(self):
-        return self.label
+        return self._label
 
     def getProb(self):
-        return self.prob
+        return self._prob
 
     def getMask(self):
         """Gets the mask, a NxN array containing 1's and 0's"""
-        return self.mask
+        return self._mask
 
     def getBbox(self):
-        return self.bBox
+        return self._bBox

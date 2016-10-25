@@ -35,7 +35,9 @@ class HumanTracker:
             for i in range(len(self.videoObjCurrentObjs)):
                 if self.videoObjCurrentObjs[i].getLabel() != None:
                     print(self.videoObjCurrentObjs[i].getLabel())
-                    cv2.imshow("mask_"+str(i),self.videoObjCurrentObjs[i].getMask())
+                    currentMask = cv2.normalize(self.videoObjCurrentObjs[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
+                    cv2.imshow("mask_"+str(i),currentMask)
+                    
                 else:
                     print(self.videoObjCurrentObjs[i].getLabel()," the label of problem object")
                     print(type(self.videoObjCurrentObjs[i].getMask()))

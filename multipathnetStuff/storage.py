@@ -1,4 +1,3 @@
-
 class Video(object):
     def __init__(self):
         self._frames = []
@@ -22,17 +21,21 @@ class Frame(object):
         return self._imgObjs[:]
 
 class ImageObject(object):
-    def __init__(self, label, prob, mask):
-        self.label = label
-        self.prob = prob
-        self.mask = mask
+    def __init__(self, label, prob, mask, bBox):
+        self._label = label
+        self._prob = prob
+        self._mask = mask
+        self._bBox = bBox
 
     def getLabel(self):
-        return self.label
+        return self._label
 
     def getProb(self):
-        return self.prob
+        return self._prob
 
     def getMask(self):
-    '''Gets the mask, a NxN array containing 1's and 0's'''
-        return self.mask
+        """Gets the mask, a NxN array containing 1's and 0's"""
+        return self._mask
+
+    def getBbox(self):
+        return self._bBox

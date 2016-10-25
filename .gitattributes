@@ -1,2 +1,1 @@
-/**/*.p linguist-vendored
-/multipathnetStuff/*
+/multipathnetStuff/* linguist-vendored

@@ -15,21 +15,15 @@ class HumanTracker:
         self.cap = cv2.VideoCapture(directory+videoname)
         self.metadata = videoname.split("_")
         self.frameNumber = 0
-        f = gzip.open(directory+videoname+".pklz","rb")
-        print(f)
+        f = gzip.open( directory+videoname+".pklz", "rb" )
         self.videoObj = pickle.load(f)
-        print(self.videoObj)
-        #self.videoObjFrames = self.videoObj.getFrames()
-        self.videoObjCurrentObjs = None
         f.close()
         print(len(self.videoObj.getFrames()), 'length of get frames of restored video object')
         self.trackedPeople = People()
-        #_, self.prvs = self.cap.read()
         self.ROI_RESIZE_DIM = (600,337)
             
     def readAndTrack(self):
         time1 = time.time()
-        
         ret,img = self.cap.read()
         if not ret: #allow for a graceful exit when the video ends
             print("Exiting Program End of Video...")
@@ -39,7 +33,12 @@ class HumanTracker:
         self.videoObjCurrentObjs = self.videoObj.getFrames()[self.frameNumber].getImageObjects()
         if self.videoObjCurrentObjs[0].getMask() != None:
             for i in range(len(self.videoObjCurrentObjs)):
-                cv2.imshow("mask_"+str(i),self.videoObjCurrentObjs[i].getMask())
+                if self.videoObjCurrentObjs[i].getLabel() != None:
+                    print(self.videoObjCurrentObjs[i].getLabel())
+                    cv2.imshow("mask_"+str(i),self.videoObjCurrentObjs[i].getMask())
+                else:
+                    print(self.videoObjCurrentObjs[i].getLabel()," the label of problem object")
+                    print(type(self.videoObjCurrentObjs[i].getMask()))
         else:
             print("Empty frame objects this frame")
         height, width = img.shape[:2]

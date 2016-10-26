@@ -26,25 +26,32 @@ class HumanTracker:
     def readAndTrack(self):
         #time1 = time.time()
         ret,img = self.cap.read()
+        
         if not ret: #allow for a graceful exit when the video ends
             print("Exiting Program End of Video...")
             self.cap.release()
             cv2.destroyAllWindows()
             return(None, 0) #return 0 to toggle active off
+        img = cv2.resize(img,self.ROI_RESIZE_DIM)
+        imgDisplay = img.copy()
         self.videoObjCurrentObjs = self.videoObj.getFrames()[self.frameNumber].getImageObjects()
         if self.videoObjCurrentObjs[0].getMask() != None: # for some reason there exists some none objects in the frames image object list. 
             for i in range(len(self.videoObjCurrentObjs)):
                 if self.videoObjCurrentObjs[i].getLabel() != None:
-                    print(self.videoObjCurrentObjs[i].getLabel())
+                    #print(self.videoObjCurrentObjs[i].getLabel())
                     currentMask = cv2.normalize(self.videoObjCurrentObjs[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
                     cv2.imshow("mask_"+str(i),currentMask)
                     #people class stuff
                     if self.videoObjCurrentObjs[i].getLabel() == 'person':
                         hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
+                        displayHistogram(hist,self.frameNumber,i)
                         bBox = self.videoObjCurrentObjs[i].getBbox()
                         
                         bBox = bBox.astype(int)
-                        print(bBox,"bBox")
+                        bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
+                        cv2.rectangle(imgDisplay, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (0,0,255), 2)
+                        #bBox = newBox
+                        #print(bBox,"bBox")
                         self.trackedPeople.update(img,currentMask,bBox,self.frameNumber,hist,self.ROI_RESIZE_DIM)
                                         
                     else:
@@ -56,7 +63,7 @@ class HumanTracker:
                 
         else:
             print("Empty frame objects this frame")
-        imgDisplay = img.copy()
+        
         self.trackedPeople.refresh(img,imgDisplay,self.frameNumber,self.ROI_RESIZE_DIM) #update all of the people
         for person in self.trackedPeople.listOfPeople:
             if person.V == 1:# HOG has updated visibility this frame
@@ -72,7 +79,8 @@ class HumanTracker:
         height, width = img.shape[:2]
         printString = 'Frame ' + str(self.frameNumber)
         cv2.putText(imgDisplay,printString,(20,80),0,1, (0,0,255),3,8,False)
-        cv2.imshow(self.metadata[0],cv2.resize(imgDisplay,self.ROI_RESIZE_DIM))      
+        cv2.imshow(self.metadata[0],imgDisplay) 
+        cv2.imshow("hsv",cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
         
         print('framenumber ' + str(self.frameNumber))
         self.frameNumber += 1     
@@ -113,21 +121,38 @@ class People():
 #            boxOnEdge = False
 
 
+#        if len(matches) == 0: #new method 1
+#            i = 0
+#            for person in self.listOfPeople:
+#                box1 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
+#                lapping = overLap(box1,bBox) #largest overlap
+#                if lapping > 0:
+#                    histDist = histogramComparison(hist,person.hist)
+#                    if len(matches)>0:
+#                        if lapping >= matches[0][0]:
+#                            if histDist < matches[0][3]:
+#                                matches = [(lapping, i,0,histDist)]  #flag of one means it was found in  lost people
+#                    else: #used in first iteration to set up overlap and histogram comparison
+#                        matches = [(lapping, i,0,histDist)]
+#                i = i + 1
+        
         if len(matches) == 0: #new method 1
             i = 0
             for person in self.listOfPeople:
                 box1 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
                 lapping = overLap(box1,bBox) #largest overlap
-                if lapping > 0:
-                    histDist = histogramComparison(hist,person.hist)
+                print (lapping, "lapping")
+                #if lapping > 0:
+                histDist = histogramComparison(hist,person.hist)
+                print(histDist, "histDist")
+                if histDist < 8000:
                     if len(matches)>0:
-                        if lapping >= matches[0][0]:
-                            if histDist < matches[0][3]:
-                                matches = [(lapping, i,0,histDist)]  #flag of one means it was found in  lost people
+                        #if lapping >= matches[0][0]:
+                        if histDist < matches[0][3]:
+                            matches = [(lapping, i,0,histDist)]  #flag of one means it was found in  lost people
                     else: #used in first iteration to set up overlap and histogram comparison
                         matches = [(lapping, i,0,histDist)]
                 i = i + 1
-
 
 
 #        if len(matches) == 0 and boxOnEdge == False: #try to assign to person that is sharing a ROI
@@ -399,23 +424,14 @@ def displayHistogram(histogram,frameNumber=-1,id=-1):
     else:
         cv2.imshow("Probable Person Histogram", img)
 
-def getHist(img,fgmask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
-    #mask = fgmask[fY:fY+fH,fX:fX+fW].copy()
-    mask = fgmask.copy()
-
-    #roiM = img[fY:(fY)+(fH), fX:(fX)+(fW)].copy()
-    #res = cv2.resize(img,(2*width, 2*height), interpolation = cv2.INTER_CUBIC)
-    #print(fW,fH,"fW,fH in getHist")
-    roiM = cv2.resize(img,(fW,fH))
-
-    hsv_roi =  cv2.cvtColor(roiM, cv2.COLOR_BGR2HSV)
-
+def getHist(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
+ 
+    hsv_roi =  cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
     roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
-    #Tools.displayHistogram(roi_hist,self.frameNumber)
+        
     cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
-    del roiM
-    del mask
+        
     return roi_hist
 
 def histogramComparison(curHist,newHist):

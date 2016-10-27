@@ -127,54 +127,48 @@ class People():
                 i += 1
         
         else:
-            
-            matches = []
             i = 0
-            for detection in detectionsList:
+            for person in personList:
                 bestMatch = []
                 j = 0
-                for person in personList:
+                for detection in detectionsList:
+                    
                     box0 = detection.getBbox()
                     box1 = [box0[0],box0[1],box0[0]+box0[2],box0[1]+box0[3]]
                     box2 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
                     lapping = overLap(box1,box2) 
+                    p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
+                    p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
+                    pixelDist = objectDistance(p1,p2)
+                    print(pixelDist, " Pixel Dist")
                     #print (lapping, "lapping")
                     histDist = histogramComparison(detection.getHist(),person.hist)
                     #print(histDist, "histDist")
                     if len(bestMatch)>0:
-                        if lapping > 0.0:
-                            if histDist < bestMatch[3]:
-                                bestMatch = [lapping, i,j,histDist]  
+                        if lapping > 0.0 or pixelDist < 150:
+                            if histDist < bestMatch[3] :
+                                bestMatch = [lapping, i, j, histDist]  
                     else: #used in first iteration to set up overlap and histogram comparison
-                        bestMatch = [lapping, i,j,histDist]
+                        if lapping > 0.0 or pixelDist < 150:
+                            bestMatch = [lapping, i, j, histDist]
                     j = j + 1
-                matches.append(bestMatch)  
-                i = i + 1       
+            
+                if len(bestMatch)>0:
+                    person.V=0
+                    person.updateLocation(detectionsList[bestMatch[2]].getBbox())
+                    person.hist = detectionsList[bestMatch[2]].getHist()
+                    print("updating person ", person.ID)
+                    del detectionsList[bestMatch[2]]
+                else:
+                    print("did not find detection for person ", i)
+                i = i + 1
+           
+            for detection in detectionsList:
+                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist()) 
+                self.listOfPeople.append(tmp_node)
+                self.index=self.index+1
+                print("creating NEW person !!",self.index)
    
-            print(len(matches), "len matches")
-            if len(matches)>0: 
-                for match in matches:
-                    print(match)
-                    personIndex = match[2]
-                    person = personList[personIndex]
-                    if person.V > 0:
-                        person.V=0
-                        person.updateLocation(detectionsList[match[1]].getBbox())
-                        print("updating person ", person.ID)
-                    else:
-                        tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist()) 
-                        self.listOfPeople.append(tmp_node)
-                        self.index=self.index+1
-                        print("creating NEW person !!",i)
-                        
-    
-         
-    
-    
-                   
-
-
-        
 
     def refresh(self,img,imgCopy,frameNumber,RoiResizeDim): #updates people's boxes and checks for occlusion
         personList = list(self.listOfPeople) #make copy of people list to use for while loop

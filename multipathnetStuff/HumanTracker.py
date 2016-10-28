@@ -7,7 +7,8 @@ import gzip
 from storage import *
 #import os
 
-
+global MAXDIST
+MAXDIST = 0.0
 class HumanTracker:
 
     def __init__(self, directory, videoname):
@@ -29,6 +30,7 @@ class HumanTracker:
         
         if not ret: #allow for a graceful exit when the video ends
             print("Exiting Program End of Video...")
+            print("MAXDIST " + str(MAXDIST))
             self.cap.release()
             cv2.destroyAllWindows()
             return(None, 0) #return 0 to toggle active off
@@ -49,6 +51,7 @@ class HumanTracker:
                     cv2.rectangle(currentMask, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
                     cv2.imshow("mask_"+str(i),currentMask)
                     #people class stuff
+                    
                     if self.videoObjCurrentObjs[i].getLabel() == 'person':
                         hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
                         
@@ -63,7 +66,8 @@ class HumanTracker:
                         
                                         
                     else:
-                        print("Not a person")                                                      
+                        print(self.videoObjCurrentObjs[i].getLabel()) 
+                                                                          
                     
                 else:
                     print(self.videoObjCurrentObjs[i].getLabel()," the label of problem object")
@@ -160,6 +164,9 @@ class People():
                     j = j + 1
             
                 if len(bestMatch)>0:
+                    global MAXDIST
+                    if bestMatch[3] > MAXDIST:
+                        MAXDIST = bestMatch[3]
                     person.V=0
                     person.updateLocation(detectionsList[bestMatch[2]].getBbox())
                     person.hist = detectionsList[bestMatch[2]].getHist()
@@ -327,6 +334,7 @@ def getHist(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
 
 def histogramComparison(curHist,newHist):
     distance = cv2.compareHist(curHist,newHist,4) #update based on color match 4
+    
     return distance
 
 def overLap(a,b):  # returns 0 if rectangles don't intersect #a and b = [xmin ymin xmax ymax]  

@@ -41,16 +41,20 @@ class HumanTracker:
                 if self.videoObjCurrentObjs[i].getLabel() != None:
                     #print(self.videoObjCurrentObjs[i].getLabel())
                     currentMask = cv2.normalize(self.videoObjCurrentObjs[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
+                    #bBox = self.videoObjCurrentObjs[i].getBbox()
+                    bBox = cv2.boundingRect(currentMask)
+                    print(bBox)
+                    #bBox = bBox.astype(int)
+                    #bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
+                    cv2.rectangle(currentMask, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
                     cv2.imshow("mask_"+str(i),currentMask)
                     #people class stuff
                     if self.videoObjCurrentObjs[i].getLabel() == 'person':
                         hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
-                        bBox = self.videoObjCurrentObjs[i].getBbox()
-                        bBox = bBox.astype(int)
-                        bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
+                        
                         tmpPerson = Detection(self.videoObjCurrentObjs[i].getMask(), bBox, self.videoObjCurrentObjs[i].getLabel(), self.videoObjCurrentObjs[i].getProb(), hist)
                         detPersonList.append(tmpPerson)
-                        displayHistogram(hist,self.frameNumber,i)
+                        #displayHistogram(hist,self.frameNumber,i)
                         
                         cv2.rectangle(imgDisplay, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
                         
@@ -102,7 +106,7 @@ class HumanTracker:
             #timeEnd = time.time()
             #totalTime = timeEnd - timeStart
             #print(totalTime,'totalTime')
-        elif self.frameNumber == 10: #for testing only to pause at a certain frame
+        elif self.frameNumber == 14: #for testing only to pause at a certain frame
             return (None,2)
         return (None,1) #return 1 to stay active
 
@@ -123,9 +127,9 @@ class People():
                 tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist()) #step 3 only update persons histogram on creation, not in subsequent updates.
                 self.listOfPeople.append(tmp_node)
                 self.index=self.index+1
-                print("creating person for the first time!!",i)
+                print("creating person for the first time!!",self.index)
                 i += 1
-        
+       
         else:
             i = 0
             for person in personList:
@@ -145,11 +149,13 @@ class People():
                     histDist = histogramComparison(detection.getHist(),person.hist)
                     #print(histDist, "histDist")
                     if len(bestMatch)>0:
-                        if lapping > 0.0 or pixelDist < 150:
+                        #if lapping > 0.0 or pixelDist < 300:
+                        if pixelDist < 100:
                             if histDist < bestMatch[3] :
                                 bestMatch = [lapping, i, j, histDist]  
                     else: #used in first iteration to set up overlap and histogram comparison
-                        if lapping > 0.0 or pixelDist < 150:
+                        #if lapping > 0.0 or pixelDist < 300:
+                        if pixelDist < 100:
                             bestMatch = [lapping, i, j, histDist]
                     j = j + 1
             
@@ -166,16 +172,20 @@ class People():
             for detection in detectionsList:
                 tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist()) 
                 self.listOfPeople.append(tmp_node)
-                self.index=self.index+1
                 print("creating NEW person !!",self.index)
+                self.index=self.index+1
+                
    
 
     def refresh(self,img,imgCopy,frameNumber,RoiResizeDim): #updates people's boxes and checks for occlusion
         personList = list(self.listOfPeople) #make copy of people list to use for while loop
 
         while len(personList) > 0:
+            
 
             person1 = self.getPerson(personList[0].ID,self.listOfPeople)
+            if person1.V > 30:
+                self.removePerson(person1.ID,self.listOfPeople)
             #print(person1.ID,'moving = ', person1.moving)
             #flag = 0
             person1.V=person1.V+1
@@ -263,8 +273,7 @@ class Person():
         self.direction = []
         self.hist = hist
         self.histList = [hist]
-        self.kalmanX = KalmanFilter(self.fX+(self.fW/2),kalmanGain = 0,covariance = 1.0,measurmentNoiseModel = 1.5,covarianceGain = 1.10,lastSensorValue = 0)
-        self.kalmanY = KalmanFilter(self.fY+(self.fH/2),kalmanGain = 0,covariance = 1.0,measurmentNoiseModel = 1.5,covarianceGain = 1.10,lastSensorValue = 0)
+        
         self.bBox = bBox
         self.lastROICurrent = []
         self.lastGoodROI = []
@@ -289,36 +298,6 @@ class Person():
         self.fY=bBox[1]
         self.fW=bBox[2]
         self.fH=bBox[3]
-
-class ClusterGroup(): #class to hold the individual groups of occluded people. consider renaming these classes
-
-    def __init__(self,label):
-        self.index=0
-        self.people=[]
-        self.previousLen = 0
-        self.label = label
-        self.state = 1 #used to get rid of cluster that is empty
-
-
-    def add(self, person):
-        if len(person) <= 1:
-            self.people.append(person)
-            self.index= self.index + 1
-        else:
-            self.people.extend(person)
-            self.index = self.index + len(person)
-
-    def remove(self, person):
-        if len(person) <= 1:
-            self.people.remove(person)
-            self.index= self.index - 1
-        else:
-            for person2 in self.people:
-                if person2 in person:
-                    self.people.remove(person)
-                    self.index= self.index - 1
-
-
 
 def displayHistogram(histogram,frameNumber=-1,id=-1):
     histogram = histogram.reshape(-1)
@@ -372,42 +351,7 @@ def objectDistance(objectBottom,cameraPosition):
     cameraBase = np.array((cameraPosition[0],cameraPosition[1], 0))#or use z = 1
     cameraBaseToBottom = np.linalg.norm(cameraBase-bottom)#1 find distance from base of camera to bottom point
     return float(cameraBaseToBottom)
-    
-class KalmanFilter():
-#Credit to Nicholas Kennedy. Renaming function for simplicity's sake.
-
-    def __init__(self,prediction,kalmanGain = 0,covariance = 1.0,measurmentNoiseModel = 1.5,covarianceGain = 1.10,lastSensorValue = 0):
-        self.kalmanGain = 0
-        self.covariance = 1.0 #1.0
-        self.measurmentNoiseModel = 1.5#.8
-        self.prediction = prediction
-        self.covarianceGain = 1.10#1.05
-        self.lastSensorValue = 0
-        
-    def updatePrediction(self, sensorValue = None):
-        if sensorValue != None:
-            self.prediction = self.prediction+self.kalmanGain*(sensorValue-self.prediction)
-        else:
-            self.prediction = self.prediction+self.kalmanGain*(0-self.prediction)
-        #return self.prediction
-    
-    def updateCovariance(self):
-        self.covariance = (1-self.kalmanGain)*self.covariance#(1-self.kalmanGain)*self.covariance
-        #print(self.covariance,'covariance')
-    
-    def updateKalmanGain(self):
-        self.kalmanGain = (self.covariance)/(self.covariance+self.measurmentNoiseModel)#(1+self.covariance)/(self.covariance+self.measurmentNoiseModel)
-        
-    def step(self, sensorValue = None):
-        self.covariance = self.covariance * self.covarianceGain
-        self.updateKalmanGain()
-        self.updatePrediction(sensorValue)
-        
-        if sensorValue != None:
-            self.updateCovariance()
-            self.lastSensorValue = sensorValue
-        else:
-            self.covariance = (1-self.kalmanGain)*self.covariance#(self.kalmanGain)*self.covariance#(1-self.kalmanGain)*self.covariance
+   
             
 class Detection():
     def __init__(self, mask, bBox, label, prob, hist):
@@ -432,168 +376,3 @@ class Detection():
     def getHist(self):
         return self._hist
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-def update(self,img,fgmask,bBox,frameNumber,hist,RoiResizeDim):
-
-        matches = []
-        
-#        if bBox[0] <= 20 or bBox[0]+bBox[2] >= RoiResizeDim[0]-20 or bBox[1] <= 20 or bBox[1]+bBox[3] >= RoiResizeDim[1]-20 : #check if person1 is on edge of scene
-#            boxOnEdge = True
-#
-#        else:
-#            boxOnEdge = False
-
-
-#        if len(matches) == 0: #new method 1
-#            i = 0
-#            for person in self.listOfPeople:
-#                box1 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
-#                lapping = overLap(box1,bBox) #largest overlap
-#                if lapping > 0:
-#                    histDist = histogramComparison(hist,person.hist)
-#                    if len(matches)>0:
-#                        if lapping >= matches[0][0]:
-#                            if histDist < matches[0][3]:
-#                                matches = [(lapping, i,0,histDist)]  #flag of one means it was found in  lost people
-#                    else: #used in first iteration to set up overlap and histogram comparison
-#                        matches = [(lapping, i,0,histDist)]
-#                i = i + 1
-        
-        if len(matches) == 0: #new method 1
-            i = 0
-            for person in self.listOfPeople:
-                box1 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
-                lapping = overLap(box1,bBox) #largest overlap
-                print (lapping, "lapping")
-                #if lapping > 0:
-                histDist = histogramComparison(hist,person.hist)
-                print(histDist, "histDist")
-                if histDist < 8000:
-                    if len(matches)>0:
-                        #if lapping >= matches[0][0]:
-                        if histDist < matches[0][3]:
-                            matches = [(lapping, i,0,histDist)]  #flag of one means it was found in  lost people
-                    else: #used in first iteration to set up overlap and histogram comparison
-                        matches = [(lapping, i,0,histDist)]
-                i = i + 1
-
-
-#        if len(matches) == 0 and boxOnEdge == False: #try to assign to person that is sharing a ROI
-#            i = 0
-#            for person in self.listOfPeople:
-#                if person.sharedROI == True:
-#                    p2 = Tools.pixelToWorld((person.fX+(person.fW/2),person.fY+person.fH), homography)
-#                    dist = Tools.objectDistance(p1,p2)
-#                    if dist < 5:
-#                        histDist = Tools.histogramComparison(hist,person.hist)
-#                    #print(histDist,'histDist 323')
-#                        if len(matches)>0: #used after first iteration to compare overlap and histogram
-#                        #if lapping > matches[0][0]:
-#                            if histDist < matches[0][3]:
-#                                matches = [([], i,0,histDist)]  #flag of one means it was found in  lost people
-#                        else: #used in first iteration to set up overlap and histogram comparison
-#                            matches = [([], i,0,histDist)]
-#                i = i + 1
-#            if len(matches) > 0:
-#
-#                person = self.listOfPeople[matches[0][1]]
-#                if person.V > 0:
-#                    person.roiCurrent = bBox
-#                    person.lastGoodROI = bBox
-#                    person.lastROICurrent = bBox
-#                    person.fX,person.fY,person.fW,person.fH = person.roiCurrent[0],person.roiCurrent[1],person.roiCurrent[2],person.roiCurrent[3]
-#                    person.V=0
-#                    person.edgeCounter = 0
-#                    person.roiCounter = 0
-#                    #print('distance is '+str(matches[0][0])+' '+ 'match found for ' +str(person.ID)+' in update case 0',lostFlag,'lostFlag')
-#                return
-
-
-        if len(matches) == 0: #check lost people for match
-            i = 0
-            for person in self.lostListOfPeople:
-                histDist = histogramComparison(hist,person.hist)
-               # print(histDist,'histDist 323')
-                if len(matches)>0: #used after first iteration to compare overlap and histogram
-                    #if lapping > matches[0][0]:
-                    if histDist < matches[0][3]:
-                        matches = [([], i,1,histDist)]  #flag of one means it was found in  lost people
-                else: #used in first iteration to set up overlap and histogram comparison
-                    matches = [([], i,1,histDist)]
-                i = i + 1
-            if len(matches) > 0:
-                if matches[0][3]> 7000: #hard coded value based on observations
-
-                    matches = [] #histogram match is not close enough make  a new person
-                    #lostFlag = 0
-                else:
-                    person = self.lostListOfPeople[matches[0][1]]
-                    pointA = [person.location[-1][1],person.location[-1][2]]
-                    pointB = [bBox[0]+(bBox[2]/2),bBox[1]+(bBox[3]/2)]
-                    distM = objectDistance(pointA,pointB)
-                    if distM < 50:
-                        pass
-                        #lostFlag = 1
-                    else:
-                        matches = []
-                        #lostFlag = 0
-
-
-        if len(matches)>0: #1 match found  update person attributes 
-            flag = matches[0][2]
-            index = matches[0][1]
-            if flag == 0: #get the person from matches
-                person = self.listOfPeople[index]
-            else:
-                person = self.lostListOfPeople[index]
-                self.insertPerson(person,self.listOfPeople)
-                self.removePerson(person.ID,self.lostListOfPeople)
-
-            if person.V > 0:#frameNumber > person.location[-1][0]: #if this is the first hog box for a person in this frame update person
-                if len(person.histList)< 5: #try to optimize the persons color histogram
-            
-                    
-                    person.histList.append(hist)
-                        #Tools.displayHistogram(person.hist,frameNumber,person.ID)
-                    if len(person.histList) > 1: #optimize the histogram
-
-                        #print(person.histList)
-                        for hist in person.histList:
-                            for i in range(len(person.hist)):
-                                person.hist[i] = person.hist[i]+hist[i]
-                        for i in range(len(person.hist)):
-                            person.hist[i] = person.hist[i]/len(person.histList)
-
-
-                person.V=0
-                person.edgeCounter = 0
-                person.roiCounter = 0
-                #print('distance is '+str(matches[0][0])+' '+ 'match found for ' +str(person.ID)+' in update case 1',lostFlag,'lostFlag')
-                return
-            else:
-
-                return
-
-
-
-
-        elif len(matches) == 0:#4 no match found so create person after refining the hog box
-           
-            tmp_node=Person(self.index,bBox,0,hist) #step 3 only update persons histogram on creation, not in subsequent updates.
-                                    
-            self.listOfPeople.append(tmp_node)
-            self.index=self.index+1
-            #print('new person added roiCurrent cheated, index is '+ str(self.index) +' case 4e')
-            return

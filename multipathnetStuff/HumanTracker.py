@@ -23,6 +23,7 @@ class HumanTracker:
         print(len(self.videoObj.getFrames()), 'length of get frames of restored video object')
         self.trackedPeople = People()
         self.ROI_RESIZE_DIM = (600,337)
+        self.resizeSetFlag = 0
             
     def readAndTrack(self):
         #time1 = time.time()
@@ -42,17 +43,24 @@ class HumanTracker:
             for i in range(len(self.videoObjCurrentObjs)):
                 if self.videoObjCurrentObjs[i].getLabel() != None:
                     #print(self.videoObjCurrentObjs[i].getLabel())
+                    
+                    if self.resizeSetFlag == 0: #only do this one time
+                        self.ROI_RESIZE_DIM = (self.videoObjCurrentObjs[i].getMask().shape[1],self.videoObjCurrentObjs[i].getMask().shape[0])
+                        img = cv2.resize(img,self.ROI_RESIZE_DIM)
+                        self.resizeSetFlag = 1
+                    
                     currentMask = cv2.normalize(self.videoObjCurrentObjs[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
                     #bBox = self.videoObjCurrentObjs[i].getBbox()
                     bBox = cv2.boundingRect(currentMask)
-                    print(bBox)
+                    #print(bBox)
                     #bBox = bBox.astype(int)
                     #bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
-                    cv2.rectangle(currentMask, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
+                    #cv2.rectangle(currentMask, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
                     cv2.imshow("mask_"+str(i),currentMask)
                     #people class stuff
                     
                     if self.videoObjCurrentObjs[i].getLabel() == 'person':
+                        #print(type(currentMask), "img channels")
                         hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
                         
                         tmpPerson = Detection(self.videoObjCurrentObjs[i].getMask(), bBox, self.videoObjCurrentObjs[i].getLabel(), self.videoObjCurrentObjs[i].getProb(), hist)
@@ -326,8 +334,8 @@ def getHist(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
  
     #hsv_roi =  cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     hsv_roi = img
-    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
-        
+    #roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
+    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])   
     cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
         
     return roi_hist

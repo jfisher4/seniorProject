@@ -141,12 +141,12 @@ class HumanTracker:
                     
                     if self.videoObjCurrentObjsIR[i].getLabel() == 'person':
                         #print(type(currentMask), "img channels")
-                        hist = getHistGray(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
+                        hist = getHist(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
                         
                         tmpPerson = Detection(self.videoObjCurrentObjsIR[i].getMask(), bBox, self.videoObjCurrentObjsIR[i].getLabel(), self.videoObjCurrentObjsIR[i].getProb(), hist)
                         detPersonList.append(tmpPerson)
                         dispName = "IR"
-                        displayHistogram(hist,dispName,self.frameNumber,i)
+                        displayHistogramGray(hist,dispName,self.frameNumber,i)
                         
                         
                         cv2.rectangle(imgDisplayIR, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
@@ -214,7 +214,7 @@ class HumanTracker:
             #timeEnd = time.time()
             #totalTime = timeEnd - timeStart
             #print(totalTime,'totalTime')
-        elif self.frameNumber == 2: #for testing only to pause at a certain frame
+        elif self.frameNumber == 100: #for testing only to pause at a certain frame
             return (None,2)
         return (None,1) #return 1 to stay active
 
@@ -426,7 +426,23 @@ def displayHistogram(histogram,dispName,frameNumber=-1,id=-1):
     else:
         cv2.imshow("Probable Person Histogram", img)
 
-
+def displayHistogramGray(histogram,dispName,frameNumber=-1,id=-1):
+    histogram = histogram.reshape(-1)
+    binCount = histogram.shape[0]
+    BIN_WIDTH = 3
+    img = np.zeros((256, binCount*BIN_WIDTH, 3), np.uint8)
+    for i in xrange(binCount):
+        h = int(histogram[i])
+        cv2.rectangle(img, (i*BIN_WIDTH, 255), ((i+1)*BIN_WIDTH, 255-h), (i, i, i), -1)
+        cv2.rectangle(img, (i*BIN_WIDTH, 255-h), ((i+1)*BIN_WIDTH, 0), (255-i, 255-i, 255-i), -1)
+    #img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    if(frameNumber != -1):
+        cv2.putText(img,"Mask_"+str(id)+" Histogram",(10,20),0, .75, (255,255,255), 1,8, False)
+    if(id!=-1):
+        cv2.imshow("Hist_"+str(id)+dispName, cv2.resize(img,(img.shape[1]/2,img.shape[0]/3)))
+    else:
+        cv2.imshow("Probable Person Histogram", img)
 
 def getHist(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
  
@@ -438,15 +454,15 @@ def getHist(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
         
     return roi_hist
 
-def getHistGray(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
- 
-    hsv_roi =  cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    
-    #roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
-    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[256],[0,256])   
-    cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
-        
-    return roi_hist
+#def getHistGray(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
+# 
+#    hsv_roi =  cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+#    
+#    #roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
+#    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[256],[0,256])   
+#    cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
+#        
+#    return roi_hist
     
     
 def histogramComparison(curHist,newHist):

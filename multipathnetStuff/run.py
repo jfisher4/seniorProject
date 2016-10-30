@@ -25,5 +25,5 @@ def run(directory,videoname):
 
 #for i in range(len(goodVideoList)):
     #run("/home/robotics_group/multipathnet/deepmask/data/",goodVideoList[i])
-run("./","RGB001.mp4") # for ryan's windows laptop
+run("./","0002.mp4") # for ryan's windows laptop
 #run("/home/robotics_group/seniorProject/multipathnetStuff/","00004.MTS")

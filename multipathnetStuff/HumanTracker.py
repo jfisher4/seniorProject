@@ -14,93 +14,188 @@ class HumanTracker:
     def __init__(self, directory, videoname):
         self.directory = directory
         self.videoname = videoname
-        self.cap = cv2.VideoCapture(directory+videoname)
-        self.metadata = videoname.split("_")
+        self.metadata = videoname.split(".")
+        print(self.metadata, " test")
+        self.capRGB = cv2.VideoCapture(directory+self.metadata[0]+"_RGB."+self.metadata[1])
+        self.capIR = cv2.VideoCapture(directory+self.metadata[0]+"_IR."+self.metadata[1])
         self.frameNumber = 0
-        f = gzip.open( directory+videoname+".pklz", "rb" )
-        self.videoObj = pickle.load(f)
+        f = gzip.open( directory+self.metadata[0]+"_RGB."+self.metadata[1]+".pklz", "rb" )
+        self.videoObjRGB = pickle.load(f)
         f.close()
-        print(len(self.videoObj.getFrames()), 'length of get frames of restored video object')
-        self.trackedPeople = People()
-        self.ROI_RESIZE_DIM = (600,337)
-        self.resizeSetFlag = 0
+        f = gzip.open( directory+self.metadata[0]+"_IR."+self.metadata[1]+".pklz", "rb" )
+        self.videoObjIR = pickle.load(f)
+        f.close()
+        print(len(self.videoObjRGB.getFrames()), 'length of get frames of restored video object')
+        print(len(self.videoObjIR.getFrames()), 'length of get frames of restored video object')
+        self.videoObjCurrentObjsRGB = None
+        self.videoObjCurrentObjsIR = None
+        self.trackedPeopleRGB = People()
+        self.trackedPeopleIR = People()
+        self.ROI_RESIZE_DIM_RGB = (600,337)
+        self.ROI_RESIZE_DIM_IR = (600,337)
+        self.resizeSetFlagRGB = 0
+        self.resizeSetFlagIR = 0
             
     def readAndTrack(self):
         #time1 = time.time()
-        ret,img = self.cap.read()
-        
-        if not ret: #allow for a graceful exit when the video ends
+        retRGB,imgRGB = self.capRGB.read()
+        retIR,imgIR = self.capIR.read()
+        if (not retRGB) or (not retIR): #allow for a graceful exit when the video ends
             print("Exiting Program End of Video...")
             print("MAXDIST " + str(MAXDIST))
-            self.cap.release()
+            self.capRGB.release()
+            self.capIR.release()
             cv2.destroyAllWindows()
             return(None, 0) #return 0 to toggle active off
-        img = cv2.resize(img,self.ROI_RESIZE_DIM)
-        imgDisplay = img.copy()
-        self.videoObjCurrentObjs = self.videoObj.getFrames()[self.frameNumber].getImageObjects()
-        if self.videoObjCurrentObjs[0].getMask() != None: # for some reason there exists some none objects in the frames image object list. 
+        imgRGB = cv2.resize(imgRGB,self.ROI_RESIZE_DIM_RGB)
+        imgDisplayRGB = imgRGB.copy()
+        imgIR = cv2.resize(imgIR,self.ROI_RESIZE_DIM_IR)
+        imgDisplayIR = imgIR.copy()
+        self.videoObjCurrentObjsRGB = self.videoObjRGB.getFrames()[self.frameNumber].getImageObjects()
+        self.videoObjCurrentObjsIR = self.videoObjIR.getFrames()[self.frameNumber].getImageObjects()
+        if self.videoObjCurrentObjsRGB[0].getMask() != None: # for some reason there exists some none objects in the frames image object list. 
             detPersonList = []
-            for i in range(len(self.videoObjCurrentObjs)):
-                if self.videoObjCurrentObjs[i].getLabel() != None:
-                    #print(self.videoObjCurrentObjs[i].getLabel())
+            for i in range(len(self.videoObjCurrentObjsRGB)):
+                if self.videoObjCurrentObjsRGB[i].getLabel() != None:
+                    #print(self.videoObjCurrentObjsRGB[i].getLabel())
                     
-                    if self.resizeSetFlag == 0: #only do this one time
-                        self.ROI_RESIZE_DIM = (self.videoObjCurrentObjs[i].getMask().shape[1],self.videoObjCurrentObjs[i].getMask().shape[0])
-                        img = cv2.resize(img,self.ROI_RESIZE_DIM)
-                        self.resizeSetFlag = 1
+                    if self.resizeSetFlagRGB == 0: #only do this one time
+                        self.ROI_RESIZE_DIM_RGB = (self.videoObjCurrentObjsRGB[i].getMask().shape[1],self.videoObjCurrentObjsRGB[i].getMask().shape[0])
+                        imgRGB = cv2.resize(imgRGB,self.ROI_RESIZE_DIM_RGB)
+                        self.resizeSetFlagRGB = 1
                     
-                    currentMask = cv2.normalize(self.videoObjCurrentObjs[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
-                    #bBox = self.videoObjCurrentObjs[i].getBbox()
-                    bBox = cv2.boundingRect(currentMask)
-                    #print(bBox)
-                    #bBox = bBox.astype(int)
-                    #bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
-                    #cv2.rectangle(currentMask, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
-                    cv2.imshow("Mask_"+str(i),cv2.resize(currentMask,(currentMask.shape[1]/2,currentMask.shape[0]/2)))
-                    #people class stuff
+                    currentMask = cv2.normalize(self.videoObjCurrentObjsRGB[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
+                    tmpMask = currentMask.copy()
+                    bBox = cv2.boundingRect(tmpMask)
                     
-                    if self.videoObjCurrentObjs[i].getLabel() == 'person':
+                    if self.videoObjCurrentObjsRGB[i].getLabel() == 'person':
                         #print(type(currentMask), "img channels")
-                        hist = getHist(img,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM)
+                        hist = getHist(imgRGB,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_RGB)
                         
-                        tmpPerson = Detection(self.videoObjCurrentObjs[i].getMask(), bBox, self.videoObjCurrentObjs[i].getLabel(), self.videoObjCurrentObjs[i].getProb(), hist)
+                        tmpPerson = Detection(self.videoObjCurrentObjsRGB[i].getMask(), bBox, self.videoObjCurrentObjsRGB[i].getLabel(), self.videoObjCurrentObjsRGB[i].getProb(), hist)
                         detPersonList.append(tmpPerson)
-                        displayHistogram(hist,self.frameNumber,i)
+                        dispName = "RGB"
+                        displayHistogram(hist,dispName,self.frameNumber,i)
                         
-                        cv2.rectangle(imgDisplay, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
+                        cv2.rectangle(imgDisplayRGB, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
                         
                         #bBox = newBox
                         #print(bBox,"bBox")
                         
                                         
                     else:
-                        print(self.videoObjCurrentObjs[i].getLabel()) 
+                        print(self.videoObjCurrentObjsRGB[i].getLabel()) 
+                        
+                    #bBox = self.videoObjCurrentObjsIR[i].getBbox()
+                    bBox = cv2.boundingRect(currentMask)
+                    printString = 'Frame Num' + str(self.frameNumber)
+                    cv2.putText(currentMask,printString,(10,20),0,.5, (255,255,255),1,8,False)
+                    #print(bBox)
+                    #bBox = bBox.astype(int)
+                    #bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
+                    #cv2.rectangle(currentMask, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
+                    cv2.imshow("Mask_RGB_"+str(i),cv2.resize(currentMask,(currentMask.shape[1]/2,currentMask.shape[0]/2)))
+                    #people class stuff
                                                                           
                     
                 else:
-                    print(self.videoObjCurrentObjs[i].getLabel()," the label of problem object")
-                    #print(type(self.videoObjCurrentObjs[i].getMask()))
-            self.trackedPeople.update(img,self.frameNumber,detPersonList) 
+                    print(self.videoObjCurrentObjsRGB[i].getLabel()," the label of problem object")
+                    #print(type(self.videoObjCurrentObjsRGB[i].getMask()))
+            self.trackedPeopleRGB.update(imgRGB,self.frameNumber,detPersonList) 
         else:
             print("Empty frame objects this frame")
         
-        self.trackedPeople.refresh(img,imgDisplay,self.frameNumber,self.ROI_RESIZE_DIM) #update all of the people
-        for person in self.trackedPeople.listOfPeople:
+        self.trackedPeopleRGB.refresh(imgRGB,imgDisplayRGB,self.frameNumber,self.ROI_RESIZE_DIM_RGB) #update all of the people
+        for person in self.trackedPeopleRGB.listOfPeople:
             if person.V == 1:# HOG has updated visibility this frame
                 
-                cv2.rectangle(imgDisplay, (person.fX, person.fY), (person.fX+person.fW,person.fY+person.fH), (0,0,255), 2)
-                cv2.putText(imgDisplay,"Person " + str(person.ID),(person.fX-10,person.fY+175),0, .5, (0,0,255), 2,8, False)
+                cv2.rectangle(imgDisplayRGB, (person.fX, person.fY), (person.fX+person.fW,person.fY+person.fH), (0,0,255), 2)
+                cv2.putText(imgDisplayRGB,"Person " + str(person.ID),(person.fX+5,person.fY-20),0, .5, (0,0,255), 2,8, False)
             elif person.V < 1000: #HOG did not update visibility and person was tracked with background subtracction
-                cv2.rectangle(imgDisplay, (person.fX, person.fY), (person.fX+person.fW, person.fY+person.fH), (0,255,0), 2) #show meanshift roi box green
-                cv2.putText(imgDisplay,str(person.ID),(person.fX+5,person.fY+30),0, 1, (0,255,0), 3,8, False)
+                cv2.rectangle(imgDisplayRGB, (person.fX, person.fY), (person.fX+person.fW, person.fY+person.fH), (0,255,0), 2) #show meanshift roi box green
+                cv2.putText(imgDisplayRGB,"Person " + str(person.ID),(person.fX+5,person.fY-20),0, .5, (0,255,0), 2,8, False)
         
 
             
-        height, width = img.shape[:2]
-        printString = 'Frame ' + str(self.frameNumber)
-        cv2.putText(imgDisplay,printString,(10,20),0,.5, (0,0,255),1,8,False)
-        cv2.imshow(self.metadata[0],imgDisplay) 
-        #cv2.imshow("hsv",cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
+        height, width = imgRGB.shape[:2]
+        printString = 'Frame RGB' + str(self.frameNumber)
+        cv2.putText(imgDisplayRGB,printString,(10,20),0,.5, (0,0,255),1,8,False)
+        cv2.imshow(self.metadata[0] + "RGB",imgDisplayRGB) 
+        #cv2.imshow("hsv",cv2.cvtColor(imgRGB, cv2.COLOR_BGR2HSV))
+        
+        if self.videoObjCurrentObjsIR[0].getMask() != None: # for some reason there exists some none objects in the frames image object list. 
+            detPersonList = []
+            for i in range(len(self.videoObjCurrentObjsIR)):
+                if self.videoObjCurrentObjsIR[i].getLabel() != None:
+                    #print(self.videoObjCurrentObjsIR[i].getLabel())
+                    
+                    if self.resizeSetFlagIR == 0: #only do this one time
+                        self.ROI_RESIZE_DIM_IR = (self.videoObjCurrentObjsIR[i].getMask().shape[1],self.videoObjCurrentObjsIR[i].getMask().shape[0])
+                        imgIR = cv2.resize(imgIR,self.ROI_RESIZE_DIM_IR)
+                        self.resizeSetFlagIR = 1
+                    
+                    currentMask = cv2.normalize(self.videoObjCurrentObjsIR[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
+                    tmpMask = currentMask.copy()
+                    bBox = cv2.boundingRect(tmpMask)
+                    
+                    if self.videoObjCurrentObjsIR[i].getLabel() == 'person':
+                        #print(type(currentMask), "img channels")
+                        hist = getHist(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
+                        
+                        tmpPerson = Detection(self.videoObjCurrentObjsIR[i].getMask(), bBox, self.videoObjCurrentObjsIR[i].getLabel(), self.videoObjCurrentObjsIR[i].getProb(), hist)
+                        detPersonList.append(tmpPerson)
+                        dispName = "IR"
+                        displayHistogram(hist,dispName,self.frameNumber,i)
+                        
+                        
+                        cv2.rectangle(imgDisplayIR, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
+                        
+                        #bBox = newBox
+                        #print(bBox,"bBox")
+                        
+                                        
+                    else:
+                        print(self.videoObjCurrentObjsIR[i].getLabel()) 
+                    
+                    #bBox = self.videoObjCurrentObjsIR[i].getBbox()
+                    bBox = cv2.boundingRect(currentMask)
+                    printString = 'Frame Num' + str(self.frameNumber)
+                    cv2.putText(currentMask,printString,(10,20),0,.5, (255,255,255),1,8,False)
+                    #print(bBox)
+                    #bBox = bBox.astype(int)
+                    #bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
+                    #cv2.rectangle(currentMask, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
+                    cv2.imshow("Mask_IR_"+str(i),cv2.resize(currentMask,(currentMask.shape[1]/2,currentMask.shape[0]/2)))
+                    #people class stuff
+                                                                          
+                    
+                else:
+                    print(self.videoObjCurrentObjsIR[i].getLabel()," the label of problem object")
+                    #print(type(self.videoObjCurrentObjsIR[i].getMask()))
+            self.trackedPeopleIR.update(imgIR,self.frameNumber,detPersonList) 
+        else:
+            print("Empty frame objects this frame")
+        
+        self.trackedPeopleIR.refresh(imgIR,imgDisplayIR,self.frameNumber,self.ROI_RESIZE_DIM_IR) #update all of the people
+        for person in self.trackedPeopleIR.listOfPeople:
+            if person.V == 1:# HOG has updated visibility this frame
+                
+                cv2.rectangle(imgDisplayIR, (person.fX, person.fY), (person.fX+person.fW,person.fY+person.fH), (0,0,255), 2)
+                cv2.putText(imgDisplayIR,"Person " + str(person.ID),(person.fX+5,person.fY-20),0, .5, (0,0,255), 2,8, False)
+            elif person.V < 1000: #HOG did not update visibility and person was tracked with background subtracction
+                cv2.rectangle(imgDisplayIR, (person.fX, person.fY), (person.fX+person.fW, person.fY+person.fH), (0,255,0), 2) #show meanshift roi box green
+                cv2.putText(imgDisplayIR,"Person " + str(person.ID),(person.fX+5,person.fY-20),0, .5, (0,255,0), 2,8, False)
+        
+
+            
+        height, width = imgIR.shape[:2]
+        printString = 'Frame IR' + str(self.frameNumber)
+        cv2.putText(imgDisplayIR,printString,(10,20),0,.5, (0,0,255),1,8,False)
+        cv2.imshow(self.metadata[0] + "IR",imgDisplayIR) 
+        #cv2.imshow("hsv",cv2.cvtColor(imgIR, cv2.COLOR_BGR2HSV))
+        
+    
+        
         
         print('framenumber ' + str(self.frameNumber))
         self.frameNumber += 1     
@@ -118,7 +213,7 @@ class HumanTracker:
             #timeEnd = time.time()
             #totalTime = timeEnd - timeStart
             #print(totalTime,'totalTime')
-        elif self.frameNumber == 14: #for testing only to pause at a certain frame
+        elif self.frameNumber == 100: #for testing only to pause at a certain frame
             return (None,2)
         return (None,1) #return 1 to stay active
 
@@ -314,7 +409,7 @@ class Person():
         self.fW=bBox[2]
         self.fH=bBox[3]
 
-def displayHistogram(histogram,frameNumber=-1,id=-1):
+def displayHistogram(histogram,dispName,frameNumber=-1,id=-1):
     histogram = histogram.reshape(-1)
     binCount = histogram.shape[0]
     BIN_WIDTH = 3
@@ -326,7 +421,7 @@ def displayHistogram(histogram,frameNumber=-1,id=-1):
     if(frameNumber != -1):
         cv2.putText(img,"Mask_"+str(id)+" Histogram",(10,20),0, .75, (255,255,255), 1,8, False)
     if(id!=-1):
-        cv2.imshow("Hist_"+str(id), cv2.resize(img,(img.shape[1]/2,img.shape[0]/3)))
+        cv2.imshow("Hist_"+str(id)+dispName, cv2.resize(img,(img.shape[1]/2,img.shape[0]/3)))
     else:
         cv2.imshow("Probable Person Histogram", img)
 

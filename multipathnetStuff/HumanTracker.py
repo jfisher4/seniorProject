@@ -40,6 +40,7 @@ class HumanTracker:
         #time1 = time.time()
         retRGB,imgRGB = self.capRGB.read()
         retIR,imgIR = self.capIR.read()
+        
         if (not retRGB) or (not retIR): #allow for a graceful exit when the video ends
             print("Exiting Program End of Video...")
             print("MAXDIST " + str(MAXDIST))
@@ -140,7 +141,7 @@ class HumanTracker:
                     
                     if self.videoObjCurrentObjsIR[i].getLabel() == 'person':
                         #print(type(currentMask), "img channels")
-                        hist = getHist(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
+                        hist = getHistGray(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
                         
                         tmpPerson = Detection(self.videoObjCurrentObjsIR[i].getMask(), bBox, self.videoObjCurrentObjsIR[i].getLabel(), self.videoObjCurrentObjsIR[i].getProb(), hist)
                         detPersonList.append(tmpPerson)
@@ -205,15 +206,15 @@ class HumanTracker:
             return (None,2) #return 2 for paused
         elif k == ord('q'):
             print("Exiting Program...")
-            
-            self.cap.release()
+            self.capRGB.release()
+            self.capIR.release()
             cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off
         #elif self.frameNumber == 10000: #for testing only to pause at a certain frame
             #timeEnd = time.time()
             #totalTime = timeEnd - timeStart
             #print(totalTime,'totalTime')
-        elif self.frameNumber == 100: #for testing only to pause at a certain frame
+        elif self.frameNumber == 2: #for testing only to pause at a certain frame
             return (None,2)
         return (None,1) #return 1 to stay active
 
@@ -425,16 +426,29 @@ def displayHistogram(histogram,dispName,frameNumber=-1,id=-1):
     else:
         cv2.imshow("Probable Person Histogram", img)
 
+
+
 def getHist(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
  
     #hsv_roi =  cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     hsv_roi = img
     #roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
-    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])   
+    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[256],[0,256])   
     cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
         
     return roi_hist
 
+def getHistGray(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
+ 
+    hsv_roi =  cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    
+    #roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
+    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[256],[0,256])   
+    cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
+        
+    return roi_hist
+    
+    
 def histogramComparison(curHist,newHist):
     distance = cv2.compareHist(curHist,newHist,4) #update based on color match 4
     

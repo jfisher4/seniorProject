@@ -1,6 +1,7 @@
 class Video(object):
     def __init__(self):
         self._frames = []
+        self._size = [0,0]
 
     def addFrame(self, frame):
         if type(frame) is Frame:
@@ -8,6 +9,9 @@ class Video(object):
 
     def getFrames(self):
         return self._frames[:]
+
+    def getSize(self):
+        return (self._size[0],self._size[1])
 
 class Frame(object):
     def __init__(self):

@@ -45,12 +45,18 @@ class HumanTracker:
             masks = masks.asNumpyArray()
             probs = probs.asNumpyArray()
             bboxes = bboxes.asNumpyArray()
-            print(labels[:],"labels in python")
-            #labels2 = labels.asNumpyArray()
-            #print( type(masks),len(masks))
+            bBox = bBox.astype(int)
+
+            bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
+            cv2.rectangle(imgDisplay, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (0,0,255), 2)
 
             for maskNum in range(masks.shape[0]):
-                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum], bboxes[maskNum])
+                print(masks[maskNum].shape," print shape")
+                if self.videoSave.getSize()[0] == 0:
+                    self.videoSave.setSize(masks[maskNum].shape[1],masks[maskNum].shape[0])
+                newLabel = str(labels[maskNum]) # convert to python string before pickling
+                newProb = float(probs[maskNum]) # convert to python float before pickling
+                dataObj = ImageObject(newLabel, newProb, masks[maskNum], bboxes[maskNum])
                 frame.addImageObject(dataObj)
             self.videoSave.addFrame(frame)
             tmpImg = tmpImg.asNumpyArray()
@@ -74,15 +80,12 @@ class HumanTracker:
             f = gzip.open( str(self.videoname)+".pklz", "wb" )
             pickle.dump(self.videoSave, f)
             f.close()
-            #pickle.dump(imagePoints, open( "05282015B5_ImgPoints.p", "wb" ) )
-            #imagePoints=pickle.load( open( "imagePoints.p", "rb" ) )
             return(None, 0) #return 0 to toggle active off
 
         self.frameNumber += 1
         height, width = img.shape[:2]
         #img = cv2.resize(img,(2*width, 2*height))
         #resize image to whatever lua needs
-
 
         cv2.imwrite(self.saveName, img)
         sleep(0.05)
@@ -99,15 +102,15 @@ class HumanTracker:
             probs = probs.asNumpyArray()
             bboxes = bboxes.asNumpyArray()
 
-
-            #labels = labels.asNumpyArray()
-            print(labels[:],"labels in python")
             for maskNum in range(masks.shape[0]):
 
-                dataObj = ImageObject(labels[maskNum], probs[maskNum], masks[maskNum], bboxes[maskNum])
+                newLabel = str(labels[maskNum]) # convert to python string before pickling
+                newProb = float(probs[maskNum]) # convert to python float before pickling
+                dataObj = ImageObject(newLabel, newProb, masks[maskNum], bboxes[maskNum])
                 frame.addImageObject(dataObj)
-                if probs[maskNum] > .1:
-                    print("Success!!")
+                print(masks[maskNum].shape," print shape")
+                if self.videoSave.getSize()[0] == 0:
+                    self.videoSave.setSize(masks[maskNum].shape[1],masks[maskNum].shape[0])
                 if labels[maskNum] == "person":
                     currentMask = masks[maskNum].reshape(masks.shape[1],masks.shape[2]) # convert to uint8 array of the same dim as the image
                     #need to convert the mask to range of 0-255 for imshow to work
@@ -132,16 +135,15 @@ class HumanTracker:
             return (None,2) #return 2 for paused
         elif k == ord('q'):
             print("Exiting Program...")
-            #print(len(self.videoSave.getFrames()), 'length of get frames of video object before')
-            #f = gzip.open( str(self.videoname)+".pklz", "w" )
-            #f = open( str(self.videoname)+".pkl", "w" )
-            #pickle.dump(self.videoSave, f)
-            #f.close()
-            #f2 = gzip.open(str(self.videoname)+".pklz","r")
-            #f2 = open(str(self.videoname)+".pkl","rb")
-            #newVideoObj = pickle.load(f2)
-            #f2.close()
-            #print(len(newVideoObj.getFrames()), 'length of get frames of restored video object')
+            print(len(self.videoSave.getFrames()), 'length of get frames of video object before')
+            f = gzip.open( str(self.videoname)+".pklz", "wb" )
+            pickle.dump(self.videoSave, f)
+            f.close()
+            f = gzip.open(str(self.videoname)+".pklz","rb")
+            newVideoObj = pickle.load(f)
+            f.close()
+
+            print(len(newVideoObj.getFrames()), 'length of get frames of restored video object compressed pkl')         
             self.cap.release()
             cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off

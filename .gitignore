@@ -1,6 +1,6 @@
 
-"*.pklz" 
-"*.mp4" 
-"*.MTS" 
-"__pycache__/" 
-"*.pyc" 
+*.pklz
+*.mp4
+*.MTS 
+/**/__pycache__/
+*.pyc

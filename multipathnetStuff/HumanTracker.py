@@ -56,7 +56,7 @@ class HumanTracker:
                     #bBox = bBox.astype(int)
                     #bBox = [bBox[0],bBox[1],bBox[2]-bBox[0],bBox[3]-bBox[1]] #convert from x1,y1,x2,y2 to x,y,w,h
                     #cv2.rectangle(currentMask, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
-                    cv2.imshow("mask_"+str(i),currentMask)
+                    cv2.imshow("Mask_"+str(i),cv2.resize(currentMask,(currentMask.shape[1]/2,currentMask.shape[0]/2)))
                     #people class stuff
 
                     if self.videoObjCurrentObjs[i].getLabel() == 'person':
@@ -65,7 +65,7 @@ class HumanTracker:
 
                         tmpPerson = Detection(self.videoObjCurrentObjs[i].getMask(), bBox, self.videoObjCurrentObjs[i].getLabel(), self.videoObjCurrentObjs[i].getProb(), hist)
                         detPersonList.append(tmpPerson)
-                        #displayHistogram(hist,self.frameNumber,i)
+                        displayHistogram(hist,self.frameNumber,i)
 
                         cv2.rectangle(imgDisplay, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
 
@@ -89,7 +89,7 @@ class HumanTracker:
             if person.V == 1:# HOG has updated visibility this frame
 
                 cv2.rectangle(imgDisplay, (person.fX, person.fY), (person.fX+person.fW,person.fY+person.fH), (0,0,255), 2)
-                cv2.putText(imgDisplay,str(person.ID),(person.fX+5,person.fY+30),0, 1, (0,0,255), 3,8, False)
+                cv2.putText(imgDisplay,"Person " + str(person.ID),(person.fX-10,person.fY+175),0, .5, (0,0,255), 2,8, False)
             elif person.V < 1000: #HOG did not update visibility and person was tracked with background subtracction
                 cv2.rectangle(imgDisplay, (person.fX, person.fY), (person.fX+person.fW, person.fY+person.fH), (0,255,0), 2) #show meanshift roi box green
                 cv2.putText(imgDisplay,str(person.ID),(person.fX+5,person.fY+30),0, 1, (0,255,0), 3,8, False)
@@ -98,8 +98,9 @@ class HumanTracker:
 
         height, width = img.shape[:2]
         printString = 'Frame ' + str(self.frameNumber)
-        cv2.putText(imgDisplay,printString,(20,80),0,1, (0,0,255),3,8,False)
-        cv2.imshow(self.metadata[0],imgDisplay)
+
+        cv2.putText(imgDisplay,printString,(10,20),0,.5, (0,0,255),1,8,False)
+        cv2.imshow(self.metadata[0],imgDisplay) 
         #cv2.imshow("hsv",cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
 
         print('framenumber ' + str(self.frameNumber))
@@ -144,7 +145,7 @@ class People():
 
         else:
             i = 0
-            for person in personList:
+            for person in personList: #iterate through the people to attempte to find a match
                 bestMatch = []
                 j = 0
                 for detection in detectionsList:
@@ -183,9 +184,9 @@ class People():
                 else:
                     print("did not find detection for person ", i)
                 i = i + 1
-
-            for detection in detectionsList:
-                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist())
+          
+            for detection in detectionsList: #spawn new person for the remaining detections
+                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist()) 
                 self.listOfPeople.append(tmp_node)
                 print("creating NEW person !!",self.index)
                 self.index=self.index+1
@@ -324,9 +325,9 @@ def displayHistogram(histogram,frameNumber=-1,id=-1):
         cv2.rectangle(img, (i*BIN_WIDTH+1, 255), ((i+1)*BIN_WIDTH-1, 255-h), (int(180.0*i/binCount), 255, 255), -1)
     img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
     if(frameNumber != -1):
-        cv2.putText(img,'Frame#: %d' %frameNumber,(20,20),0, .75, (255,255,255), 1,8, False)
+        cv2.putText(img,"Mask_"+str(id)+" Histogram",(10,20),0, .75, (255,255,255), 1,8, False)
     if(id!=-1):
-        cv2.imshow("Person "+str(id)+" Histogram", img)
+        cv2.imshow("Hist_"+str(id), cv2.resize(img,(img.shape[1]/2,img.shape[0]/3)))
     else:
         cv2.imshow("Probable Person Histogram", img)
 

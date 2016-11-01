@@ -10,6 +10,11 @@ class Video(object):
     def getFrames(self):
         return self._frames[:]
 
+    def setSize(self,col,row):
+        self._size[0] = col
+        self._size[1] = row
+
+
     def getSize(self):
         return (self._size[0],self._size[1])
 

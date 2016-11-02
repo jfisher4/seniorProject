@@ -31,9 +31,9 @@ class HumanTracker:
         self.videoObjCurrentObjsIR = None
         self.trackedPeopleRGB = People()
         self.trackedPeopleIR = People()
-        self.ROI_RESIZE_DIM_RGB = (600,337)
-        self.ROI_RESIZE_DIM_IR = (600,337)
-        self.resizeSetFlagRGB = 0
+        self.ROI_RESIZE_DIM_RGB = self.videoObjRGB.getSize()#(600,337)
+        self.ROI_RESIZE_DIM_IR = self.videoObjRGB.getSize()#(600,337)
+        
         self.resizeSetFlagIR = 0
             
     def readAndTrack(self):
@@ -60,10 +60,7 @@ class HumanTracker:
                 if self.videoObjCurrentObjsRGB[i].getLabel() != None:
                     #print(self.videoObjCurrentObjsRGB[i].getLabel())
                     
-                    if self.resizeSetFlagRGB == 0: #only do this one time
-                        self.ROI_RESIZE_DIM_RGB = (self.videoObjCurrentObjsRGB[i].getMask().shape[1],self.videoObjCurrentObjsRGB[i].getMask().shape[0])
-                        imgRGB = cv2.resize(imgRGB,self.ROI_RESIZE_DIM_RGB)
-                        self.resizeSetFlagRGB = 1
+                    
                     
                     currentMask = cv2.normalize(self.videoObjCurrentObjsRGB[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
                     tmpMask = currentMask.copy()
@@ -129,17 +126,13 @@ class HumanTracker:
             for i in range(len(self.videoObjCurrentObjsIR)):
                 if self.videoObjCurrentObjsIR[i].getLabel() != None:
                     #print(self.videoObjCurrentObjsIR[i].getLabel())
-                    
-                    if self.resizeSetFlagIR == 0: #only do this one time
-                        self.ROI_RESIZE_DIM_IR = (self.videoObjCurrentObjsIR[i].getMask().shape[1],self.videoObjCurrentObjsIR[i].getMask().shape[0])
-                        imgIR = cv2.resize(imgIR,self.ROI_RESIZE_DIM_IR)
-                        self.resizeSetFlagIR = 1
-                    
+                   
                     currentMask = cv2.normalize(self.videoObjCurrentObjsIR[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
                     tmpMask = currentMask.copy()
                     bBox = cv2.boundingRect(tmpMask)
                     
                     if self.videoObjCurrentObjsIR[i].getLabel() == 'person':
+                        
                         #print(type(currentMask), "img channels")
                         hist = getHist(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
                         
@@ -214,7 +207,7 @@ class HumanTracker:
             #timeEnd = time.time()
             #totalTime = timeEnd - timeStart
             #print(totalTime,'totalTime')
-        elif self.frameNumber == 100: #for testing only to pause at a certain frame
+        elif self.frameNumber == 10000: #for testing only to pause at a certain frame
             return (None,2)
         return (None,1) #return 1 to stay active
 

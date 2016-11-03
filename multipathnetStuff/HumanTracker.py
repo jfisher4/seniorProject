@@ -34,10 +34,15 @@ class HumanTracker:
         self.ROI_RESIZE_DIM_RGB = self.videoObjRGB.getSize()#(600,337)
         self.ROI_RESIZE_DIM_IR = self.videoObjRGB.getSize()#(600,337)
         
+        
         self.resizeSetFlagIR = 0
+        self.errorReportRGB = [0] #[numLabelmismatch,numFalsePos]
+        self.errorReportIR = [0] #[numLabelmismatch,numFalsePos]
+        self.pause = False
             
     def readAndTrack(self):
         #time1 = time.time()
+        self.pause = False
         retRGB,imgRGB = self.capRGB.read()
         retIR,imgIR = self.capIR.read()
         
@@ -65,10 +70,10 @@ class HumanTracker:
                     currentMask = cv2.normalize(self.videoObjCurrentObjsRGB[i].getMask(), None, 0, 255, cv2.NORM_MINMAX)
                     tmpMask = currentMask.copy()
                     bBox = cv2.boundingRect(tmpMask)
-                    
-                    if self.videoObjCurrentObjsRGB[i].getLabel() == 'person':
+                    print(bBox, "bBox in RGB read and track")
+                    if self.videoObjCurrentObjsRGB[i].getLabel() == 'person' and (bBox[1]+bBox[3] > 300): #code for omitting background detections
                         #print(type(currentMask), "img channels")
-                        hist = getHist(imgRGB,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_RGB)
+                        hist = getHistRGBPYIMGSRCH(imgRGB,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_RGB)
                         
                         tmpPerson = Detection(self.videoObjCurrentObjsRGB[i].getMask(), bBox, self.videoObjCurrentObjsRGB[i].getLabel(), self.videoObjCurrentObjsRGB[i].getProb(), hist)
                         detPersonList.append(tmpPerson)
@@ -99,12 +104,17 @@ class HumanTracker:
                 else:
                     print(self.videoObjCurrentObjsRGB[i].getLabel()," the label of problem object")
                     #print(type(self.videoObjCurrentObjsRGB[i].getMask()))
+            print("updating RGB people")
             self.trackedPeopleRGB.update(imgRGB,self.frameNumber,detPersonList) 
         else:
             print("Empty frame objects this frame")
-        
+        print("refreshing RGB people")
         self.trackedPeopleRGB.refresh(imgRGB,imgDisplayRGB,self.frameNumber,self.ROI_RESIZE_DIM_RGB) #update all of the people
         for person in self.trackedPeopleRGB.listOfPeople:
+            if len(person.location) > 1:
+                if objectDistance(person.location[-1],person.location[-2]) > 50:
+                    self.errorReportRGB[0]+=1
+                    self.pause = True
             if person.V == 1:# HOG has updated visibility this frame
                 
                 cv2.rectangle(imgDisplayRGB, (person.fX, person.fY), (person.fX+person.fW,person.fY+person.fH), (0,0,255), 2)
@@ -131,11 +141,11 @@ class HumanTracker:
                     tmpMask = currentMask.copy()
                     bBox = cv2.boundingRect(tmpMask)
                     
-                    if self.videoObjCurrentObjsIR[i].getLabel() == 'person':
+                    if self.videoObjCurrentObjsIR[i].getLabel() == 'person' and (bBox[1]+bBox[3] > 300): #code for omitting background detections
                         
                         #print(type(currentMask), "img channels")
-                        hist = getHist(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
-                        
+                        hist = getHistGray(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
+                        #hist = getHistRGBPYIMGSRCH(imgIR,currentMask,0,0,currentMask.shape[1],currentMask.shape[0],self.ROI_RESIZE_DIM_IR)
                         tmpPerson = Detection(self.videoObjCurrentObjsIR[i].getMask(), bBox, self.videoObjCurrentObjsIR[i].getLabel(), self.videoObjCurrentObjsIR[i].getProb(), hist)
                         detPersonList.append(tmpPerson)
                         dispName = "IR"
@@ -166,12 +176,17 @@ class HumanTracker:
                 else:
                     print(self.videoObjCurrentObjsIR[i].getLabel()," the label of problem object")
                     #print(type(self.videoObjCurrentObjsIR[i].getMask()))
+            print("updating IR people")
             self.trackedPeopleIR.update(imgIR,self.frameNumber,detPersonList) 
         else:
             print("Empty frame objects this frame")
-        
+        print("refreshing IR people")
         self.trackedPeopleIR.refresh(imgIR,imgDisplayIR,self.frameNumber,self.ROI_RESIZE_DIM_IR) #update all of the people
         for person in self.trackedPeopleIR.listOfPeople:
+            if len(person.location) > 1:
+                if objectDistance(person.location[-1],person.location[-2]) > 50:
+                    self.errorReportIR[0]+=1
+                    self.pause = True
             if person.V == 1:# HOG has updated visibility this frame
                 
                 cv2.rectangle(imgDisplayIR, (person.fX, person.fY), (person.fX+person.fW,person.fY+person.fH), (0,0,255), 2)
@@ -189,11 +204,31 @@ class HumanTracker:
         #cv2.imshow("hsv",cv2.cvtColor(imgIR, cv2.COLOR_BGR2HSV))
         
     
+        print(self.errorReportRGB," RGB Labeling Errors")
+        print(self.errorReportIR, " IR Labeling Errors")
+        if (self.trackedPeopleRGB.index > 3):
+            print("false positives count for RGB is ", self.trackedPeopleRGB.index-3 )
+        else:
+            print("false positives count for RGB is 0")
+            
+        if (self.trackedPeopleIR.index > 3):
+            print("false positives count for IR is ", self.trackedPeopleIR.index-3 )
+        else:
+            print("false positives count for IR is 0")
         
+        if (self.trackedPeopleRGB.index < 3):
+            print("Number of untracked RGB people ", 3 - self.trackedPeopleRGB.index )
+        else:
+            print("Number of untracked RGB people = 0")
+            
+        if (self.trackedPeopleIR.index < 3):
+            print("Number of untracked IR people ", 3 - self.trackedPeopleRGB.index )
+        else:
+            print("Number of untracked IR people = 0")
         
         print('framenumber ' + str(self.frameNumber))
         self.frameNumber += 1     
-        k = cv2.waitKey(2) & 0xFF
+        k = cv2.waitKey(40) & 0xFF
         if k == ord('p'):
             print("Pausing...")
             return (None,2) #return 2 for paused
@@ -203,11 +238,11 @@ class HumanTracker:
             self.capIR.release()
             cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off
-        #elif self.frameNumber == 10000: #for testing only to pause at a certain frame
+        elif self.frameNumber-1 == 10120 or self.pause == True: #for testing only to pause at a certain frame
             #timeEnd = time.time()
             #totalTime = timeEnd - timeStart
             #print(totalTime,'totalTime')
-        elif self.frameNumber == 10000: #for testing only to pause at a certain frame
+#        elif self.pause : #for testing only to pause at a certain frame
             return (None,2)
         return (None,1) #return 1 to stay active
 
@@ -219,68 +254,205 @@ class People():
         self.index=0
         #self.trackedPeople.update(img,self.fgmask,fX,fY,fW,fH,self.frameNumber,roi_hist,self.trackedPeople.listOfPeople)
 # Updates an item in the list of people/object or appends a new entry or assigns to a group or removes from a group
-    def update(self,img,frameNumber,detectionsList):
+    def update(self,img,frameNumber,detectionsList): # update needs two passed in order to ensure that each person has a chance to match each box before the box is assigned to the wrond person
+        if len(detectionsList) == 0: #in case method is called on a empty detectionsList
+            return
         personList = self.listOfPeople
         
-        if len(personList) == 0:
+        if len(personList) == 0: # if length of person list is zero generate a person for each detection
             i = 0
             for detection in detectionsList:
-                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist()) #step 3 only update persons histogram on creation, not in subsequent updates.
+                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist(),detection.getMask()) #step 3 only update persons histogram on creation, not in subsequent updates.
                 self.listOfPeople.append(tmp_node)
                 self.index=self.index+1
-                print("creating person for the first time!!",self.index)
+                print("creating person for the first time!!",self.index-1)
                 i += 1
-       
-        else:
-            i = 0
-            for person in personList: #iterate through the people to attempte to find a match
-                bestMatch = []
-                j = 0
-                for detection in detectionsList:
-                    
+        
+        else: 
+            matchesList = [] # the same length as personList  
+            for i in range(len(personList)): # generate the list of matches 
+                bestMatch =  [-1, i, -1, 1000000] #[pixelDist, personIdx, detectionIdx,histDist= 1000000 majic number should be replaced with better alternative]
+                person = personList[i]
+                for j in range(len(detectionsList)):
+                    detection = detectionsList[j]
+                        
+                    histDist = histogramComparison(detectionsList[j].getHist(),personList[i].hist)
+                    print(histDist, "histDist for person ",personList[i].ID, " and detection ", j)
+                    #pixelDist = objectDistance(getCentroid(detectionsList[j].getMask()),getCentroid(personList[i].mask))
                     box0 = detection.getBbox()
-                    box1 = [box0[0],box0[1],box0[0]+box0[2],box0[1]+box0[3]]
-                    box2 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
-                    lapping = overLap(box1,box2) 
+                    
                     p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
                     p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
                     pixelDist = objectDistance(p1,p2)
-                    print(pixelDist, " Pixel Dist")
-                    #print (lapping, "lapping")
-                    histDist = histogramComparison(detection.getHist(),person.hist)
-                    #print(histDist, "histDist")
-                    if len(bestMatch)>0:
-                        #if lapping > 0.0 or pixelDist < 300:
-                        if pixelDist < 100:
-                            if histDist < bestMatch[3] :
-                                bestMatch = [lapping, i, j, histDist]  
-                    else: #used in first iteration to set up overlap and histogram comparison
-                        #if lapping > 0.0 or pixelDist < 300:
-                        if pixelDist < 100:
-                            bestMatch = [lapping, i, j, histDist]
-                    j = j + 1
-            
-                if len(bestMatch)>0:
-                    global MAXDIST
-                    if bestMatch[3] > MAXDIST:
-                        MAXDIST = bestMatch[3]
-                    person.V=0
-                    person.updateLocation(detectionsList[bestMatch[2]].getBbox())
-                    person.hist = detectionsList[bestMatch[2]].getHist()
-                    print("updating person ", person.ID)
-                    del detectionsList[bestMatch[2]]
-                else:
-                    print("did not find detection for person ", i)
-                i = i + 1
-           
-            for detection in detectionsList: #spawn new person for the remaining detections
-                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist()) 
-                self.listOfPeople.append(tmp_node)
-                print("creating NEW person !!",self.index)
-                self.index=self.index+1
-                
-   
+                    if pixelDist < 75:
 
+                        if bestMatch[2] == -1:#j == 0:
+                            bestMatch = [pixelDist, i, j, histDist]  
+                        else:
+                            if histDist > bestMatch[3] : #for some histograms larger value is better 0,2 Larger is better 1,3,4,,5 SMALLER is better
+                                bestMatch = [pixelDist, i, j, histDist]  
+
+                matchesList.append(bestMatch) #save the match for use in second pass
+            print(matchesList, " matchesList")
+            #del bestMatch
+            usedDetections = []
+            boolListPerson = []
+            for i in range(len(personList)):  #assign detections from results of first pass 
+                if matchesList[i][2] == -1:
+                    continue # no match found
+                match = i # number to use to compare against i in order to see if the match was correct
+                for j in range(len(personList)):
+                    if matchesList[i][2] == matchesList[j][2] and i != j: # check if there is a disagreement on the match and ensure that we arenot talking about the same person
+                        if matchesList[j][3] > matchesList[i][3]: #compare hist dists to see who had the better match !! the equality needs to match the one above
+                            match = j #give the match to the other guy
+                    
+                if match == i: #match was correct update person and update list that shows which detections were used
+                    personList[i].V=0
+                    personList[i].updateLocation(detectionsList[matchesList[i][2]].getBbox())
+                    personList[i].mask = detectionsList[matchesList[i][2]].getMask()
+                    if frameNumber % 1 == 0:
+                        personList[i].hist = detectionsList[matchesList[i][2]].getHist()
+                    print("updating person ", personList[i].ID, " with detection # ", matchesList[i][2])
+                    
+                    usedDetections.append(matchesList[i][2])
+                    boolListPerson.append(True)
+                    
+                else:
+                    boolListPerson.append(False)
+                    #might need code here to chose other detection if pixel proximity is ok
+                    print("did not find detection for person ", i)    
+            
+#            for i in range(len(boolListPerson)): #second chance 
+#                if boolListPerson[i] == False and personList[i].V < 10 and personList[i].nearEdge == False: #person is still present in scene do not spawn new person.
+#                    firstCompare = True
+#                    for j in range(len(detectionsList)): #spawn new person for the remaining detections
+#                        if j in usedDetections:
+#                            pass
+#                        else:
+#                            histDist = histogramComparison(detectionsList[j].getHist(),personList[i].hist)
+#                            print(histDist, "histDist for person ",personList[i].ID, " and detection second chance", j)
+#                            if firstCompare == True:
+#                                bestMatch = [-1, i, j, histDist]  
+#                                firstCompare = False
+#                            else:
+#                                if histDist > bestMatch[3] : #for some histograms larger value is better 0,2 Larger is better 1,3,4,,5 SMALLER is better
+#                                    bestMatch = [-1, i, j, histDist] 
+#                    matchesList[i] = bestMatch #update matches list
+#            for i in range(len(boolListPerson)):
+#                if boolListPerson[i] == False and personList[i].V < 10 and personList[i].nearEdge == False: #person is still present in scene do not spawn new person
+#                    match = i
+#                    for j in range(len(boolListPerson)):
+#                        if boolListPerson[j] == False and personList[j].V < 10 and personList[j].nearEdge == False:
+#                            if matchesList[i][2] == matchesList[j][2] and i != j: # check if there is a disagreement on the match and ensure that we arenot talking about the same person
+#                                if matchesList[j][3] > matchesList[i][3]: #compare hist dists to see who had the better match !! the equality needs to match the one above
+#                                    match = j #give the match to the other guy    
+#                if match == i: #match was correct update person and update list that shows which detections were used
+#                    personList[i].V=0
+#                    personList[i].updateLocation(detectionsList[matchesList[i][2]].getBbox())
+#                    personList[i].mask = detectionsList[matchesList[i][2]].getMask()
+#                    if frameNumber % 1 == 0:
+#                        personList[i].hist = detectionsList[matchesList[i][2]].getHist()
+#                    print("updating person ", personList[i].ID, " with detection # in second chance", matchesList[i][2])
+#                    
+#                    usedDetections.append(matchesList[i][2])
+#                    boolListPerson[i] =True
+#                    
+#                else:
+#                    boolListPerson[i] = False
+#                    #might need code here to chose other detection if pixel proximity is ok
+#                    print("did not find detection for person in second chance ", personList[i].ID)
+#                    
+            for i in range(len(boolListPerson)): #second chanceversion 2
+                if boolListPerson[i] == False and personList[i].nearEdge == False: #person is still present in scene do not spawn new person.
+                    for j in range(len(detectionsList)): #spawn new person for the remaining detections
+                        if j in usedDetections:
+                            pass
+                        else:
+                            personList[i].V=0
+                            personList[i].updateLocation(detectionsList[j].getBbox())
+                            personList[i].mask = detectionsList[j].getMask()
+                            if frameNumber % 1 == 0:
+                                personList[i].hist = detectionsList[j].getHist()
+                            print("updating person ", personList[i].ID, " with detection # in second chance", j)
+                            
+                            usedDetections.append(j)
+                            boolListPerson[i] =True
+                    
+
+
+
+
+
+
+
+
+
+
+        
+                        
+            for j in range(len(detectionsList)): #spawn new person for the remaining detections
+                if j in usedDetections:
+                    pass
+                else:
+                    tmp_node=Person(self.index,detectionsList[j].getBbox(),0,detectionsList[j].getHist(),detectionsList[j].getMask()) 
+                    self.listOfPeople.append(tmp_node)
+                    print("creating NEW person !!",self.index)
+                    self.index=self.index+1
+              
+            
+#            i = 0 #original method which did not have a second pass
+#            for person in personList: #iterate through the people to attempte to find a match twice
+#                print("attempting to find match for person ", person.ID)
+#                bestMatch =  [-1, i, -1, 1000000]
+#                j = 0
+#                for detection in detectionsList:
+#                    
+#                    box0 = detection.getBbox()
+#                    box1 = [box0[0],box0[1],box0[0]+box0[2],box0[1]+box0[3]]
+#                    box2 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
+#                    lapping = overLap(box1,box2) 
+#                    p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
+#                    p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
+#                    #pixelDist = objectDistance(p1,p2)
+#                    pixelDist = objectDistance(getCentroid(detection.getMask()),getCentroid(person.mask))
+#                    mask = detection.getMask()
+#                    mask = cv2.normalize(mask, None, 0, 255, cv2.NORM_MINMAX)
+#                    #print(mask.shape)
+#                    
+#                                    
+#                    
+#                    print(pixelDist, " Pixel Dist")
+#                    #print (lapping, "lapping")
+#                    histDist = histogramComparison(detection.getHist(),person.hist)
+#                    print(histDist, "histDist for person ",person.ID, " and detection ", j)
+ #                    pixelDist = objectDistance(getCentroid(detection.getMask()),getCentroid(person.mask))
+#                    if pixelDist < 75:
+#                        if histDist < bestMatch[3] :
+#                            bestMatch = [pixelDist, i, j, histDist]  
+#                    
+#                    j = j + 1
+#            
+#                if bestMatch[2] != -1:
+#                    global MAXDIST
+#                    if bestMatch[3] > MAXDIST:
+#                        MAXDIST = bestMatch[3]
+#                    person.V=0
+#                    person.updateLocation(detectionsList[bestMatch[2]].getBbox())
+#                    person.mask = detectionsList[bestMatch[2]].getMask()
+#                    if frameNumber % 30 == 0:
+#                        person.hist = detectionsList[bestMatch[2]].getHist()
+#                    print("updating person ", person.ID, " with detection # ", bestMatch[2])
+#                    del detectionsList[bestMatch[2]]
+#                else:
+#                    print("did not find detection for person ", i)
+#                i = i + 1
+#           
+#            for detection in detectionsList: #spawn new person for the remaining detections
+#                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist(),detection.getMask()) 
+#                self.listOfPeople.append(tmp_node)
+#                print("creating NEW person !!",self.index)
+#                self.index=self.index+1
+ 
     def refresh(self,img,imgCopy,frameNumber,RoiResizeDim): #updates people's boxes and checks for occlusion
         personList = list(self.listOfPeople) #make copy of people list to use for while loop
 
@@ -288,12 +460,20 @@ class People():
             
 
             person1 = self.getPerson(personList[0].ID,self.listOfPeople)
-            if person1.V > 30:
-                self.removePerson(person1.ID,self.listOfPeople)
+            #print(person1.V, "person visibility in refresh", person1.ID)
+            #print(person1.nearEdge, "person visibility in refresh", person1.ID)
+            #if (person1.V > 10) or (person1.V > 1 and person1.nearEdge == True):
+            
             #print(person1.ID,'moving = ', person1.moving)
             #flag = 0
-            person1.V=person1.V+1
             
+            if (person1.fX < 40) or (person1.fX+ person1.fW > RoiResizeDim[0] - 10):
+                person1.nearEdge = True
+            
+            if (person1.V > 15):
+                self.removePerson(person1.ID,self.listOfPeople)
+            elif (person1.V >= 10 and person1.nearEdge == True):
+                self.removePerson(person1.ID,self.listOfPeople)
             #print(person1.ID, flag, 'flag for current person')  
 
 #            if person1.nearEdge == True and person1.edgeCounter > 15:# and person1.meanShiftStateCounter > 120: #code to detect the person leaving the scene
@@ -330,7 +510,9 @@ class People():
 #                person1.edgeCounter +=1
 #            else:
 #                person1.nearEdge = False
-
+            print(person1.V, "person visibility in refresh", person1.ID)
+            print(person1.nearEdge, "person nearEdge", person1.ID)
+            person1.V=person1.V+1
             personList.remove(person1)
 
 
@@ -365,12 +547,13 @@ class People():
 # This class stores all information about a single person/object in the frame.
 class Person():
 
-    def __init__(self,ID,bBox,visible,hist):
+    def __init__(self,ID,bBox,visible,hist,mask):
         self.ID=ID
         self.fX=bBox[0]
         self.fY=bBox[1]
         self.fW=bBox[2]
         self.fH=bBox[3]
+        self.centroid = getCentroid(mask)
         self.V=visible
         self.location=[]
         self.kalmanLocation = []
@@ -396,6 +579,7 @@ class Person():
         self.worldLocation = []
         self.clusterGroup = None
         self.sharedROI = False
+        self.mask = mask
     
     def updateLocation(self, bBox):
         self.fX=bBox[0]
@@ -404,9 +588,13 @@ class Person():
         self.fH=bBox[3]
 
 def displayHistogram(histogram,dispName,frameNumber=-1,id=-1):
+    print("display testRGB!!!!!!!!#######")
+    print(histogram.shape)
     histogram = histogram.reshape(-1)
+    
     binCount = histogram.shape[0]
-    BIN_WIDTH = 3
+    print(histogram.shape)
+    BIN_WIDTH = 1#3
     img = np.zeros((256, binCount*BIN_WIDTH, 3), np.uint8)
     for i in xrange(binCount):
         h = int(histogram[i])
@@ -420,7 +608,10 @@ def displayHistogram(histogram,dispName,frameNumber=-1,id=-1):
         cv2.imshow("Probable Person Histogram", img)
 
 def displayHistogramGray(histogram,dispName,frameNumber=-1,id=-1):
+    print("display testIR!!!!!!!!#######")
+    print(histogram.shape)
     histogram = histogram.reshape(-1)
+    print(histogram.shape)
     binCount = histogram.shape[0]
     BIN_WIDTH = 3
     img = np.zeros((256, binCount*BIN_WIDTH, 3), np.uint8)
@@ -437,7 +628,24 @@ def displayHistogramGray(histogram,dispName,frameNumber=-1,id=-1):
     else:
         cv2.imshow("Probable Person Histogram", img)
 
-def getHist(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
+def getHistRGB(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
+ 
+    hsv_roi =  cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    #hsv_roi = img
+    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
+    #roi_hist = cv2.calcHist([hsv_roi],[0],mask,[256],[0,256])   
+    cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
+        
+    return roi_hist
+
+def getHistRGBPYIMGSRCH(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM):
+    
+    hist = cv2.calcHist([img], [0, 1, 2], mask, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+    #cv2.normalize(hist,hist).flatten()
+    cv2.normalize(hist,hist,0,255,cv2.NORM_MINMAX).flatten()
+    return hist
+
+def getHistGray(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #seems to work better for grey scale images
  
     #hsv_roi =  cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     hsv_roi = img
@@ -447,19 +655,20 @@ def getHist(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
         
     return roi_hist
 
-#def getHistGray(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
-# 
-#    hsv_roi =  cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-#    
-#    #roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
-#    roi_hist = cv2.calcHist([hsv_roi],[0],mask,[256],[0,256])   
-#    cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
-#        
-#    return roi_hist
+
     
     
 def histogramComparison(curHist,newHist):
-    distance = cv2.compareHist(curHist,newHist,4) #update based on color match 4
+    
+    
+    distance = cv2.compareHist(curHist,newHist,0) #update based on color match 4 Bhattacharya distance, 0 and 2,3 work well, 1,4 and 5 do not , correlation seems to work best for RGB and IR
+    #cv2.HISTCMP_BHATTACHARYYA = 3 smaller is better
+    #cv2.HISTCMP_CHISQR = 1 smaller is better
+    #cv2.HISTCMP_CHISQR_ALT = 4 smaller is better
+    #cv2.HISTCMP_CORREL = 0 larger is better
+    #cv2.HISTCMP_HELLINGER = 3 smaller is better
+    #cv2.HISTCMP_INTERSECT = 2 larger is better
+    #cv2.HISTCMP_KL_DIV = 5 smaller is better? unsure
     
     return distance
 
@@ -510,3 +719,13 @@ class Detection():
     def getHist(self):
         return self._hist
     
+def getCentroid(mask):
+    mom = cv2.moments(mask)
+    #mom = cv2.HuMoments(mom) not sure how to use humoments yet
+    moment10 = mom["m10"];
+    moment01 = mom["m01"];
+    moment00 = mom["m00"];
+    x = moment10 / moment00;
+    y = moment01 / moment00;
+    #print("centroid is ", [x,y])
+    return (x,y)

@@ -640,7 +640,7 @@ def getHistRGB(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
 
 def getHistRGBPYIMGSRCH(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM):
     
-    hist = cv2.calcHist([img], [0, 1, 2], mask, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+    hist = cv2.calcHist([img], [0, 1, 2], mask, [256, 256, 256], [0, 256, 0, 256, 0, 256])
     #cv2.normalize(hist,hist).flatten()
     cv2.normalize(hist,hist,0,255,cv2.NORM_MINMAX).flatten()
     return hist

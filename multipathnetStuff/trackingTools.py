@@ -1,3 +1,5 @@
+import random
+
 class MaxBipartite(object):
 
     def __init__(self, M, N):
@@ -14,6 +16,7 @@ class MaxBipartite(object):
                 if (matchR[v] < 0 or self.bpm(bpGraph, matchR[v], seen, matchR)):
                     matchR[v] = u
                     return True
+
         return False
 
     def maxBPM(self, bpGraph):
@@ -34,6 +37,10 @@ class MaxBipartite(object):
 
         return result
 
+def rand_array(n):
+    return [[random.random() for _ in range(n)] for _ in range(n)]
+
+
 def main():
     bpGraph = [[False, True, True, False, False, False],
     [True, False, False, True, False, False],
@@ -43,6 +50,9 @@ def main():
     [False, False, False, False, False, True]]
 
     m = MaxBipartite(6, 6)
-    print(m.maxBPM(bpGraph))
+
+    a = rand_array(6)
+    print(a)
+    print(m.maxBPM(a))
 
 main()

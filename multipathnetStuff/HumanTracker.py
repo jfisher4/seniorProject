@@ -39,6 +39,10 @@ class HumanTracker:
         self.errorReportRGB = [0] #[numLabelmismatch,numFalsePos]
         self.errorReportIR = [0] #[numLabelmismatch,numFalsePos]
         self.pause = False
+        self.svmDataRGB = []
+        self.svmBoolsRGB = []
+        self.svmDataIR = []
+        self.svmBoolsIR = []
             
     def readAndTrack(self):
         #time1 = time.time()
@@ -52,6 +56,24 @@ class HumanTracker:
             self.capRGB.release()
             self.capIR.release()
             cv2.destroyAllWindows()
+            # train the SVM or write SVM dat to pickle files
+                                    
+            f = gzip.open( str(self.videoname)+"SVMDATARGB.pklz", "wb" )
+            pickle.dump(self.svmDataRGB, f)
+            f.close()
+            f = gzip.open( str(self.videoname)+"SVMBOOLSRGB.pklz", "wb" )
+            pickle.dump(self.svmBoolsRGB, f)
+            f.close()
+            f = gzip.open( str(self.videoname)+"SVMDATAIR.pklz", "wb" )
+            pickle.dump(self.svmDataIR, f)
+            f.close()
+            f = gzip.open( str(self.videoname)+"SVMBOOLSIR.pklz", "wb" )
+            pickle.dump(self.svmBoolsIR, f)
+            f.close()
+            
+            
+            
+            
             return(None, 0) #return 0 to toggle active off
         imgRGB = cv2.resize(imgRGB,self.ROI_RESIZE_DIM_RGB)
         imgDisplayRGB = imgRGB.copy()
@@ -105,7 +127,11 @@ class HumanTracker:
                     print(self.videoObjCurrentObjsRGB[i].getLabel()," the label of problem object")
                     #print(type(self.videoObjCurrentObjsRGB[i].getMask()))
             print("updating RGB people")
-            self.trackedPeopleRGB.update(imgRGB,self.frameNumber,detPersonList) 
+            trainingData, trainingBools = self.trackedPeopleRGB.update(imgRGB,self.frameNumber,detPersonList) 
+                        
+            if len(trainingData) > 0:
+                self.svmDataRGB.extend(trainingData) #add the svm training data to master lists
+                self.svmBoolsRGB.extend(trainingBools)
         else:
             print("Empty frame objects this frame")
         print("refreshing RGB people")
@@ -177,7 +203,10 @@ class HumanTracker:
                     print(self.videoObjCurrentObjsIR[i].getLabel()," the label of problem object")
                     #print(type(self.videoObjCurrentObjsIR[i].getMask()))
             print("updating IR people")
-            self.trackedPeopleIR.update(imgIR,self.frameNumber,detPersonList) 
+            trainingData, trainingBools = self.trackedPeopleIR.update(imgIR,self.frameNumber,detPersonList) 
+            if len(trainingData) > 0:
+                self.svmDataIR.extend(trainingData) #add the svm training data to master lists
+                self.svmBoolsIR.extend(trainingBools)
         else:
             print("Empty frame objects this frame")
         print("refreshing IR people")
@@ -252,11 +281,19 @@ class People():
         self.listOfPeople=list()
         self.lostListOfPeople=list()
         self.index=0
+        f = open( "svmModelRGB.p", "rb")
+        self.SVMModelRGB = pickle.load(f)
+        f.close()
+        f = open( "svmModelRGB.p", "rb")
+        self.SVMModelIR = pickle.load(f)
+        f.close()
         #self.trackedPeople.update(img,self.fgmask,fX,fY,fW,fH,self.frameNumber,roi_hist,self.trackedPeople.listOfPeople)
-# Updates an item in the list of people/object or appends a new entry or assigns to a group or removes from a group
+        # Updates an item in the list of people/object or appends a new entry or assigns to a group or removes from a group
     def update(self,img,frameNumber,detectionsList): # update needs two passed in order to ensure that each person has a chance to match each box before the box is assigned to the wrond person
+        trainingData = [] # stuff for SVM
+        trainingBools = []
         if len(detectionsList) == 0: #in case method is called on a empty detectionsList
-            return
+            return trainingData, trainingBools
         personList = self.listOfPeople
         
         if len(personList) == 0: # if length of person list is zero generate a person for each detection
@@ -267,6 +304,7 @@ class People():
                 self.index=self.index+1
                 print("creating person for the first time!!",self.index-1)
                 i += 1
+            
         
         else: 
             matchesList = [] # the same length as personList  
@@ -287,22 +325,30 @@ class People():
                     if pixelDist < 75:
 
                         if bestMatch[2] == -1:#j == 0:
-                            bestMatch = [pixelDist, i, j, histDist]  
+                            bestMatch = [pixelDist, i, j, histDist]  # first iteration do not save to training data yet
                         else:
                             if histDist > bestMatch[3] : #for some histograms larger value is better 0,2 Larger is better 1,3,4,,5 SMALLER is better
-                                bestMatch = [pixelDist, i, j, histDist]  
-
+                                trainingData.append([bestMatch[3],bestMatch[0]]) # save previous hist and pixel dist as a vector in training data when histogram match for current is better than previous
+                                trainingBools.append(0) # save classification for negative to bool list
+                                bestMatch = [pixelDist, i, j, histDist] 
+                            else:
+                                trainingData.append([histDist,pixelDist]) # save hist and pixel dist as a vector in training data when hist distance is not better than the current best match
+                                trainingBools.append(0) # save classification for negative to bool list
+                    else: # put data into list as negative
+                        trainingData.append([histDist,pixelDist]) # save hist and pixel dist as a vector in training data when pixel distance is not satisfied
+                        trainingBools.append(0) # save classification for negative to bool list
                 matchesList.append(bestMatch) #save the match for use in second pass
             print(matchesList, " matchesList")
             #del bestMatch
             usedDetections = []
             boolListPerson = []
+            
             for i in range(len(personList)):  #assign detections from results of first pass 
                 if matchesList[i][2] == -1:
                     continue # no match found
                 match = i # number to use to compare against i in order to see if the match was correct
                 for j in range(len(personList)):
-                    if matchesList[i][2] == matchesList[j][2] and i != j: # check if there is a disagreement on the match and ensure that we arenot talking about the same person
+                    if matchesList[i][2] == matchesList[j][2] and i != j: # check if there is a disagreement on the match and ensure that we are not talking about the same person
                         if matchesList[j][3] > matchesList[i][3]: #compare hist dists to see who had the better match !! the equality needs to match the one above
                             match = j #give the match to the other guy
                     
@@ -316,11 +362,15 @@ class People():
                     
                     usedDetections.append(matchesList[i][2])
                     boolListPerson.append(True)
+                    trainingData.append([matchesList[i][3],matchesList[i][0]]) # save hist and pixel dist as a vector in training data when match was valid. Only do this for videos that have been manually verified to not have errors in tracking!!!
+                    trainingBools.append(1) # save classification for negative to bool list
                     
                 else:
                     boolListPerson.append(False)
                     #might need code here to chose other detection if pixel proximity is ok
-                    print("did not find detection for person ", i)    
+                    print("did not find detection for person ", i)
+                    trainingData.append([matchesList[i][3],matchesList[i][0]]) # save hist and pixel dist as a vector in training data when match was invalid
+                    trainingBools.append(0) # save classification for negative to bool list
             
 #            for i in range(len(boolListPerson)): #second chance 
 #                if boolListPerson[i] == False and personList[i].V < 10 and personList[i].nearEdge == False: #person is still present in scene do not spawn new person.
@@ -398,7 +448,7 @@ class People():
                     self.listOfPeople.append(tmp_node)
                     print("creating NEW person !!",self.index)
                     self.index=self.index+1
-              
+        return trainingData, trainingBools  
             
 #            i = 0 #original method which did not have a second pass
 #            for person in personList: #iterate through the people to attempte to find a match twice
@@ -452,7 +502,126 @@ class People():
 #                self.listOfPeople.append(tmp_node)
 #                print("creating NEW person !!",self.index)
 #                self.index=self.index+1
- 
+
+    def updateWithSVM(self,img,frameNumber,detectionsList,imageType): # update needs two passed in order to ensure that each person has a chance to match each box before the box is assigned to the wrond person
+        
+
+        
+        if len(detectionsList) == 0: #in case method is called on a empty detectionsList
+            return
+        personList = self.listOfPeople
+        if imageType == "RGB":
+            model = self.SVMModelRGB
+        elif imageType == "IR":
+            model = self.SVMModelIR
+        if len(personList) == 0: # if length of person list is zero generate a person for each detection
+            i = 0
+            for detection in detectionsList:
+                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist(),detection.getMask()) #step 3 only update persons histogram on creation, not in subsequent updates.
+                self.listOfPeople.append(tmp_node)
+                self.index=self.index+1
+                print("creating person for the first time!!",self.index-1)
+                i += 1
+            
+        
+        else: 
+            matchesList = [] # the same length as personList  
+            for i in range(len(personList)): # generate the list of matches 
+                bestMatch =  [-1, i, -1, 1000000] #[pixelDist, personIdx, detectionIdx,histDist= 1000000 majic number should be replaced with better alternative]
+                person = personList[i]
+                for j in range(len(detectionsList)):
+                    detection = detectionsList[j]
+                        
+                    histDist = histogramComparison(detectionsList[j].getHist(),personList[i].hist)
+                    print(histDist, "histDist for person ",personList[i].ID, " and detection ", j)
+                    #pixelDist = objectDistance(getCentroid(detectionsList[j].getMask()),getCentroid(personList[i].mask))
+                    box0 = detection.getBbox()
+                    
+                    p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
+                    p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
+                    pixelDist = objectDistance(p1,p2)
+                    if pixelDist < 75:
+
+                        if bestMatch[2] == -1:#j == 0:
+                            bestMatch = [pixelDist, i, j, histDist]  # first iteration do not save to training data yet
+                        else:
+                            if histDist > bestMatch[3] : #for some histograms larger value is better 0,2 Larger is better 1,3,4,,5 SMALLER is better
+                                
+                                bestMatch = [pixelDist, i, j, histDist] 
+                            
+                    
+                matchesList.append(bestMatch) #save the match for use in second pass
+            print(matchesList, " matchesList")
+            #del bestMatch
+            usedDetections = []
+            boolListPerson = []
+            
+            for i in range(len(personList)):  #assign detections from results of first pass 
+                if matchesList[i][2] == -1:
+                    continue # no match found
+                match = i # number to use to compare against i in order to see if the match was correct
+                for j in range(len(personList)):
+                    if matchesList[i][2] == matchesList[j][2] and i != j: # check if there is a disagreement on the match and ensure that we are not talking about the same person
+                        if matchesList[j][3] > matchesList[i][3]: #compare hist dists to see who had the better match !! the equality needs to match the one above
+                            match = j #give the match to the other guy
+                    
+                if match == i: #match was correct update person and update list that shows which detections were used
+                    personList[i].V=0
+                    personList[i].updateLocation(detectionsList[matchesList[i][2]].getBbox())
+                    personList[i].mask = detectionsList[matchesList[i][2]].getMask()
+                    if frameNumber % 1 == 0:
+                        personList[i].hist = detectionsList[matchesList[i][2]].getHist()
+                    print("updating person ", personList[i].ID, " with detection # ", matchesList[i][2])
+                    
+                    usedDetections.append(matchesList[i][2])
+                    boolListPerson.append(True)
+                    
+                    
+                else:
+                    boolListPerson.append(False)
+                    #might need code here to chose other detection if pixel proximity is ok
+                    print("did not find detection for person ", i)
+                    
+        
+            for i in range(len(boolListPerson)): #second chanceversion 2
+                if boolListPerson[i] == False and personList[i].nearEdge == False: #person is still present in scene do not spawn new person.
+                    for j in range(len(detectionsList)): #spawn new person for the remaining detections
+                        if j in usedDetections:
+                            pass
+                        else:
+                            personList[i].V=0
+                            personList[i].updateLocation(detectionsList[j].getBbox())
+                            personList[i].mask = detectionsList[j].getMask()
+                            if frameNumber % 1 == 0:
+                                personList[i].hist = detectionsList[j].getHist()
+                            print("updating person ", personList[i].ID, " with detection # in second chance", j)
+                            
+                            usedDetections.append(j)
+                            boolListPerson[i] =True
+                    
+
+
+
+
+
+
+
+
+
+
+        
+                        
+            for j in range(len(detectionsList)): #spawn new person for the remaining detections
+                if j in usedDetections:
+                    pass
+                else:
+                    tmp_node=Person(self.index,detectionsList[j].getBbox(),0,detectionsList[j].getHist(),detectionsList[j].getMask()) 
+                    self.listOfPeople.append(tmp_node)
+                    print("creating NEW person !!",self.index)
+                    self.index=self.index+1
+        return
+            
+
     def refresh(self,img,imgCopy,frameNumber,RoiResizeDim): #updates people's boxes and checks for occlusion
         personList = list(self.listOfPeople) #make copy of people list to use for while loop
 
@@ -640,7 +809,7 @@ def getHistRGB(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM): #not a foreground hist
 
 def getHistRGBPYIMGSRCH(img,mask,fX,fY,fW,fH,ROI_RESIZE_DIM):
     
-    hist = cv2.calcHist([img], [0, 1, 2], mask, [256, 256, 256], [0, 256, 0, 256, 0, 256])
+    hist = cv2.calcHist([img], [0, 1, 2], mask, [8, 8, 8], [0, 256, 0, 256, 0, 256])
     #cv2.normalize(hist,hist).flatten()
     cv2.normalize(hist,hist,0,255,cv2.NORM_MINMAX).flatten()
     return hist

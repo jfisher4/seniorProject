@@ -50,7 +50,7 @@ def main():
     print(clfRGB.fit(data_train, target_train ))
     
     predicted = clfRGB.predict(data_test)
-    print(predicted)
+
     print(metrics.classification_report(target_test,predicted,target_names=target_names))
     print(metrics.confusion_matrix(target_test,predicted))
     print(metrics.roc_curve(target_test,predicted))

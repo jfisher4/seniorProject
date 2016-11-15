@@ -39,6 +39,32 @@ def main():
     IRBool.extend(pickle.load(f))
     f.close()
     
+    f = gzip.open( "0005.mp4SVMDATARGB.pklz", "rb" )
+    RGBData.extend(pickle.load(f))
+    f.close()
+    f = gzip.open( "0005.mp4SVMBOOLSRGB.pklz", "rb" )
+    RGBBool.extend(pickle.load(f))
+    f.close()
+    f = gzip.open( "0005.mp4SVMDATAIR.pklz", "rb" )
+    IRData.extend(pickle.load(f))
+    f.close()
+    f = gzip.open( "0005.mp4SVMBOOLSIR.pklz", "rb" )
+    IRBool.extend(pickle.load(f))
+    f.close()
+    
+    f = gzip.open( "0006.mp4SVMDATARGB.pklz", "rb" )
+    RGBData.extend(pickle.load(f))
+    f.close()
+    f = gzip.open( "0006.mp4SVMBOOLSRGB.pklz", "rb" )
+    RGBBool.extend(pickle.load(f))
+    f.close()
+    f = gzip.open( "0006.mp4SVMDATAIR.pklz", "rb" )
+    IRData.extend(pickle.load(f))
+    f.close()
+    f = gzip.open( "0006.mp4SVMBOOLSIR.pklz", "rb" )
+    IRBool.extend(pickle.load(f))
+    f.close()
+    
     target_names = ["false","true"]      
     
     print("RGB results")        
@@ -48,9 +74,7 @@ def main():
     data_train,data_test,target_train,target_test=train_test_split(RGBData,RGBBool,test_size=0.3)
     print("Size of Training Data = %d\n" % len(data_train))
     print(clfRGB.fit(data_train, target_train ))
-    
     predicted = clfRGB.predict(data_test)
-
     print(metrics.classification_report(target_test,predicted,target_names=target_names))
     print(metrics.confusion_matrix(target_test,predicted))
     print(metrics.roc_curve(target_test,predicted))

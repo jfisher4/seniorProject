@@ -1,4 +1,7 @@
 import random
+import pickle
+import cv2
+import numpy as np
 
 class MaxBipartite(object):
 
@@ -92,3 +95,195 @@ def main():
     print("Num of matches found", m.maxBPM(bpGraph))
 
 #main()
+class ImgToImgHomography():
+    def __init__(self,image1,image2,filename):
+        self.homography = []
+        self.imagePoints1 = []
+        self.imagePoints2 = []
+        self.image1 = image1
+        self.image2 = image2
+        self.x1 = -1
+        self.y1 = -1
+        self.x2 = -1
+        self.y2 = -1
+        self.filename = "BGRtoIR_Homography_"+filename
+        self.defaultImage1 = image1.copy()
+        self.defaultImage2 = image2.copy()
+
+    def displayOptions(self):
+        print("=============================================================================================")
+        print("Select a point on one image and then the corresponding point in the other image ")
+        print("Click left mouse to select point on first image" )
+        print("Click right mouse to select point on second image" )
+        print(" d = remove a point from the first list")
+        print(" f = remove a point from the second list")
+        print(" h = compute homography, p = find corresponding image point,")
+        print(" l = load from previous saved homography, s = save images")
+        print("z = save point to list1, x = save point to list2, q = quit")
+        print("c = clear screen, k = default lists, q = quit")
+    #code for calculating homography matrix
+    
+    def findHom(self): # need to verify that the matrix is correct
+        """Calculates the homography if there are 4+ point pairs"""
+        src = np.array(self.imagePoints1, dtype=np.float64)      # using cv2.getPerspectiveTransform returns the same matrix as the code above but only allows for 4 points.
+        dest = np.array(self.imagePoints2, dtype=np.float64)
+        H3, mask = cv2.findHomography(src, dest, cv2.RANSAC,5.0)
+        self.homography = H3
+        origin = ([[self.imagePoints1[0][0]],[self.imagePoints1[0][1]],[1]])
+        originMatrix = np.array(origin,dtype=np.float32)
+        originTest = np.dot(H3, originMatrix)
+        originTestXY = np.divide(originTest,originTest[2])
+        f = open( self.filename+".p", "wb" )
+        pickle.dump(H3, f )
+        f.close()
+        f = open( self.filename+"imgPnts1.p", "wb" )
+        pickle.dump(self.imagePoints1, f )
+        f.close()
+        f = open( self.filename+"imgPnts2.p", "wb" )
+        pickle.dump(self.imagePoints2, f )
+        f.close()
+        print("Matrix H3 derived from cv2.findHomography(src, dest, cv2.RANSAC,5.0).")
+        print(H3)
+        print("Image coordinates of world origin.")
+        print(originMatrix)
+        print("Origin test result world coordinates.")
+        print(originTestXY)
+    
+    def drawRoi1(self,event,x,y,flags,param):
+        
+        if event == cv2.EVENT_LBUTTONDOWN: #left button for selecting points on image 1
+            self.x1=x
+            self.y1=y            
+            cv2.circle(self.image1,(self.x1,self.y1),2,(0,0,255), 2) 
+                
+            
+    
+    def drawRoi2(self,event,x,y,flags,param):
+        
+        if event == cv2.EVENT_LBUTTONDOWN: #left button for selecting points on image 2
+            self.x2=x
+            self.y2=y            
+            cv2.circle(self.image2,(self.x2,self.y2),2,(0,0,255), 2) 
+               
+            
+                                  
+    def pointSelector(self): #Helper
+        self.displayOptions()
+        
+        try:
+            f = open( self.filename+".p", "rb")
+            self.homography = pickle.load( f ) #code for loading homography from file.
+            f.close()
+            print("homograpy successfully loaded")
+        except:
+            print("no previously saved homography exists, you must create the homography")
+        
+        cv2.namedWindow('image1')#, flags = cv2.WINDOW_NORMAL)# toggle flag when using on a limited resolution display. not for exact measurements though. 
+        cv2.namedWindow('image2')
+                
+        
+        cv2.setMouseCallback('image1',self.drawRoi1) # listens for mouse events
+        cv2.setMouseCallback('image2',self.drawRoi2) # listens for mouse events
+        
+        
+        while(True):
+            
+            cv2.imshow('image1',self.image1)
+            cv2.imshow('image2',self.image2)         
+            
+            k = cv2.waitKey(10) & 0xFF
+            
+            if k == ord('p') and len(self.homography) > 0:
+                cv2.circle(self.image1,(self.x1,self.y1),2,(255,0,0), 2) 
+                otherPoint = self.pointToPoint()
+                cv2.putText(self.image2, str(otherPoint),(otherPoint[0]+10,otherPoint[1]), 0, 1, (255,0,0), 1,8, False)
+                cv2.circle(self.image2,(otherPoint[0],otherPoint[1]),2,(255,0,0), 2) 
+                
+                print(otherPoint)
+            
+            if k == ord('z') and self.x1 != -1 and self.y1 != -1:
+                self.imagePoints1.append([self.x1,self.y1])
+                print("imagePoints1 = ",self.imagePoints1)
+                print("imagePoints2 = ",self.imagePoints2)
+                
+            if k == ord('x') and self.x2 != -1 and self.y2 != -1:
+                self.imagePoints2.append([self.x2,self.y2])
+                print("imagePoints1 = ",self.imagePoints1)
+                print("imagePoints2 = ",self.imagePoints2)
+                
+            if k== ord('l') : #and init and x != "None":  attempt to load prior homography
+                try:
+                    f = open( self.filename+".p", "rb" )
+                    self.homography = pickle.load( f ) #code for loading homography from file.
+                    f.close()
+                    print('homography.p successfully loaded')
+                except:
+                    print('homography not available')
+                                                                            
+            if k== ord('h'):
+               
+                if len(self.imagePoints1) >= 4 and len(self.imagePoints1) == len(self.imagePoints2):                    
+                    print("Computing homography matrix for image to image conversion")
+                    self.findHom()
+                    
+                else:
+                    print("not enough image points to calculate homography or list are not same length")
+            
+            if k== ord('d') and len(self.imagePoints1) > 0:
+                print(self.imagePoints1.pop(-1))
+                print(self.imagePoints1)
+                print("Removed last chosen pixel homography point from image 1 (rgb).")
+            
+            if k== ord('f') and len(self.imagePoints2) > 0:
+                print(self.imagePoints2.pop(-1))
+                print(self.imagePoints2)
+                print("Removed last chosen pixel homography point from image 2 (IR).")
+            
+# Save Image for Homography 
+            if k== ord('s'):
+                print("Homography Image")                
+                saveName=self.filename+"RGB.jpeg"  
+                cv2.imwrite(saveName, self.image1)
+                saveName=self.filename+"IR.jpeg"  
+                cv2.imwrite(saveName, self.image2)                    
+  
+# clears screen and restores all points lists to default
+            if k == ord('c'):
+                
+                self.image1 = self.defaultImage1.copy()
+                self.image2 = self.defaultImage2.copy()
+                self.displayOptions()
+# clears screen and restores all points lists to default                
+            if k == ord('k'):
+                self.x1 = -1
+                self.y1 = -1
+                self.x2 = -1
+                self.y2 = -1
+                self.imagePoints1 = []
+                self.imagePoints2 = []
+                self.image1 = self.defaultImage1.copy()
+                self.image2 = self.defaultImage2.copy()
+                self.displayOptions()
+                
+# q for quit            
+            if k== ord('q'):
+                
+                break
+
+        cv2.destroyAllWindows()
+        return self.homography
+
+    # code for calculating world coord from pixel coord
+    def pointToPoint(self):
+        if not len(self.homography) == 0:
+            point = ([[self.x1],[self.y1],[1]])
+            pointMatrix = np.array(point,dtype=np.float32)
+            otherPoint = np.dot(self.homography, pointMatrix) #dot or multiply?
+            other = np.divide(otherPoint,otherPoint[2])
+            otherX, otherY = other[0],other[1]
+            #worldVal = str(world[0])+","+str(world[1])
+            #print(worldX,worldY)
+            return (otherX, otherY)
+        else:
+            print("You must first create homography matrix.")
+        

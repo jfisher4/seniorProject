@@ -35,7 +35,7 @@ class HumanTracker:
         self.trackedPeopleIR = People()
         self.ROI_RESIZE_DIM_RGB = self.videoObjRGB.getSize()#(600,337)
         self.ROI_RESIZE_DIM_IR = self.videoObjRGB.getSize()#(600,337)
-        
+        self.homography = []
         
         self.resizeSetFlagIR = 0
         self.errorReportRGB = [0] #[numLabelmismatch,numFalsePos]
@@ -45,6 +45,7 @@ class HumanTracker:
         self.svmBoolsRGB = []
         self.svmDataIR = []
         self.svmBoolsIR = []
+
             
     def readAndTrack(self):
         #time1 = time.time()
@@ -267,6 +268,10 @@ class HumanTracker:
         print('framenumber ' + str(self.frameNumber))
         self.frameNumber += 1     
         k = cv2.waitKey(40) & 0xFF
+        if self.frameNumber-1 == 0: #create homography on first frame
+            homg = ImgToImgHomography(imgDisplayRGB,imgDisplayIR,self.metadata[0])
+            homg.displayOptions()
+            homg.pointSelector()
         if k == ord('p'):
             print("Pausing...")
             return (None,2) #return 2 for paused

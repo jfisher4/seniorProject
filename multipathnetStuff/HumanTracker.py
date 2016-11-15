@@ -41,6 +41,10 @@ class HumanTracker:
         self.errorReportRGB = [0] #[numLabelmismatch,numFalsePos]
         self.errorReportIR = [0] #[numLabelmismatch,numFalsePos]
         self.pause = False
+        self.svmDataRGBTemp = []
+        self.svmBoolsRGBTemp = []
+        self.svmDataIRTemp = []
+        self.svmBoolsIRTemp = []
         self.svmDataRGB = []
         self.svmBoolsRGB = []
         self.svmDataIR = []
@@ -59,20 +63,21 @@ class HumanTracker:
             self.capRGB.release()
             self.capIR.release()
             cv2.destroyAllWindows()
+            
             # train the SVM or write SVM dat to pickle files
                                     
-#            f = gzip.open( str(self.videoname)+"SVMDATARGB.pklz", "wb" )
-#            pickle.dump(self.svmDataRGB, f)
-#            f.close()
-#            f = gzip.open( str(self.videoname)+"SVMBOOLSRGB.pklz", "wb" )
-#            pickle.dump(self.svmBoolsRGB, f)
-#            f.close()
-#            f = gzip.open( str(self.videoname)+"SVMDATAIR.pklz", "wb" )
-#            pickle.dump(self.svmDataIR, f)
-#            f.close()
-#            f = gzip.open( str(self.videoname)+"SVMBOOLSIR.pklz", "wb" )
-#            pickle.dump(self.svmBoolsIR, f)
-#            f.close()
+            f = gzip.open( str(self.videoname)+"SVMDATARGB.pklz", "wb" )
+            pickle.dump(self.svmDataRGB, f)
+            f.close()
+            f = gzip.open( str(self.videoname)+"SVMBOOLSRGB.pklz", "wb" )
+            pickle.dump(self.svmBoolsRGB, f)
+            f.close()
+            f = gzip.open( str(self.videoname)+"SVMDATAIR.pklz", "wb" )
+            pickle.dump(self.svmDataIR, f)
+            f.close()
+            f = gzip.open( str(self.videoname)+"SVMBOOLSIR.pklz", "wb" )
+            pickle.dump(self.svmBoolsIR, f)
+            f.close()
             
             
             
@@ -135,9 +140,9 @@ class HumanTracker:
             #self.trackedPeopleRGB.updateWithSVM(imgRGB,self.frameNumber,detPersonList, "RGB")
             #self.trackedPeopleRGB.updateBIPartiteAndSVM(imgRGB,self.frameNumber,detPersonList, "RGB")
             #self.trackedPeopleRGB.updateBIPartiteAndSVMOverLap(imgRGB,self.frameNumber,detPersonList, "RGB")         
-#            if len(trainingData) > 0:
-#                self.svmDataRGB.extend(trainingData) #add the svm training data to master lists
-#                self.svmBoolsRGB.extend(trainingBools)
+            if len(trainingData) > 0:
+                self.svmDataRGBTemp.extend(trainingData) #add the svm training data to master lists
+                self.svmBoolsRGBTemp.extend(trainingBools)
         else:
             print("Empty frame objects this frame")
         print("refreshing RGB people")
@@ -214,9 +219,9 @@ class HumanTracker:
             #self.trackedPeopleIR.updateWithSVM(imgIR,self.frameNumber,detPersonList, "IR") 
             #self.trackedPeopleIR.updateBIPartiteAndSVM(imgIR,self.frameNumber,detPersonList, "IR") 
             #self.trackedPeopleIR.updateBIPartiteAndSVMOverLap(imgIR,self.frameNumber,detPersonList, "IR")
-#            if len(trainingData) > 0:
-#                self.svmDataIR.extend(trainingData) #add the svm training data to master lists
-#                self.svmBoolsIR.extend(trainingBools)
+            if len(trainingData) > 0:
+                self.svmDataIRTemp.extend(trainingData) #add the svm training data to master lists
+                self.svmBoolsIRTemp.extend(trainingBools)
         else:
             print("Empty frame objects this frame")
         print("refreshing IR people")
@@ -267,12 +272,34 @@ class HumanTracker:
         
         print('framenumber ' + str(self.frameNumber))
         self.frameNumber += 1     
-        k = cv2.waitKey(40) & 0xFF
-        if self.frameNumber-1 == 0: #create homography on first frame
+        k = cv2.waitKey(0) & 0xFF
+        print("type 1 for good results this frame or 0 for poor results this frame")
+        if k == ord('1'):#case [1, 1] both rgb and IR are good
+            print("selection was 1")
+            self.svmDataRGB.extend(self.svmDataRGBTemp)
+            self.svmBoolsRGB.extend(self.svmBoolsRGBTemp)
+            self.svmDataIR.extend(self.svmDataIRTemp)
+            self.svmBoolsIR.extend(self.svmBoolsIRTemp)
+            
+        elif k == ord('2'):#case [1, 0] rgb good and IR poor
+            print("selection was 2")
+            self.svmDataRGB.extend(self.svmDataRGBTemp)
+            self.svmBoolsRGB.extend(self.svmBoolsRGBTemp)
+            
+        elif k == ord('3'):#case [0, 1] rgb poor and IR good
+            print("selection was 1")
+            self.svmDataIR.extend(self.svmDataIRTemp)
+            self.svmBoolsIR.extend(self.svmBoolsIRTemp)
+            
+        elif k == ord('4'):#case [0, 0] both rgb and IR poor
+            print("selection was 2")
+            
+        elif k == ord('h'): #create homography on first frame
             homg = ImgToImgHomography(imgDisplayRGB,imgDisplayIR,self.metadata[0])
             homg.displayOptions()
-            homg.pointSelector()
-        if k == ord('p'):
+            self.homography = homg.pointSelector()
+            return(None,2)
+        elif k == ord('p'):
             print("Pausing...")
             return (None,2) #return 2 for paused
         elif k == ord('q'):
@@ -281,12 +308,15 @@ class HumanTracker:
             self.capIR.release()
             cv2.destroyAllWindows()
             return (None,0) #return 0 to toggle active off
-        elif self.frameNumber-1 == 10120 or self.pause == True: #for testing only to pause at a certain frame
+        
             #timeEnd = time.time()
             #totalTime = timeEnd - timeStart
             #print(totalTime,'totalTime')
 #        elif self.pause : #for testing only to pause at a certain frame
-            return (None,2)
+        self.svmDataRGBTemp = []
+        self.svmBoolsRGBTemp = []
+        self.svmDataIRTemp = []
+        self.svmBoolsIRTemp = []   
         return (None,1) #return 1 to stay active
 
 class People():

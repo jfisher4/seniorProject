@@ -5,6 +5,8 @@ import pickle
 import gzip
 #import time
 from storage import *
+from sklearn import svm
+from trackingTools import *
 #import os
 
 global MAXDIST
@@ -58,18 +60,18 @@ class HumanTracker:
             cv2.destroyAllWindows()
             # train the SVM or write SVM dat to pickle files
                                     
-            f = gzip.open( str(self.videoname)+"SVMDATARGB.pklz", "wb" )
-            pickle.dump(self.svmDataRGB, f)
-            f.close()
-            f = gzip.open( str(self.videoname)+"SVMBOOLSRGB.pklz", "wb" )
-            pickle.dump(self.svmBoolsRGB, f)
-            f.close()
-            f = gzip.open( str(self.videoname)+"SVMDATAIR.pklz", "wb" )
-            pickle.dump(self.svmDataIR, f)
-            f.close()
-            f = gzip.open( str(self.videoname)+"SVMBOOLSIR.pklz", "wb" )
-            pickle.dump(self.svmBoolsIR, f)
-            f.close()
+#            f = gzip.open( str(self.videoname)+"SVMDATARGB.pklz", "wb" )
+#            pickle.dump(self.svmDataRGB, f)
+#            f.close()
+#            f = gzip.open( str(self.videoname)+"SVMBOOLSRGB.pklz", "wb" )
+#            pickle.dump(self.svmBoolsRGB, f)
+#            f.close()
+#            f = gzip.open( str(self.videoname)+"SVMDATAIR.pklz", "wb" )
+#            pickle.dump(self.svmDataIR, f)
+#            f.close()
+#            f = gzip.open( str(self.videoname)+"SVMBOOLSIR.pklz", "wb" )
+#            pickle.dump(self.svmBoolsIR, f)
+#            f.close()
             
             
             
@@ -103,7 +105,7 @@ class HumanTracker:
                         displayHistogram(hist,dispName,self.frameNumber,i)
                         
                         cv2.rectangle(imgDisplayRGB, (bBox[0], bBox[1]), (bBox[0]+bBox[2],bBox[1]+bBox[3]), (255,0,0), 4)
-                        
+                        cv2.imshow(self.metadata[0] + "RGB",imgDisplayRGB) 
                         #bBox = newBox
                         #print(bBox,"bBox")
                         
@@ -127,11 +129,14 @@ class HumanTracker:
                     print(self.videoObjCurrentObjsRGB[i].getLabel()," the label of problem object")
                     #print(type(self.videoObjCurrentObjsRGB[i].getMask()))
             print("updating RGB people")
-            trainingData, trainingBools = self.trackedPeopleRGB.update(imgRGB,self.frameNumber,detPersonList) 
-                        
-            if len(trainingData) > 0:
-                self.svmDataRGB.extend(trainingData) #add the svm training data to master lists
-                self.svmBoolsRGB.extend(trainingBools)
+            trainingData, trainingBools = self.trackedPeopleRGB.update(imgRGB,self.frameNumber,detPersonList)
+            #trainingData, trainingBools = self.trackedPeopleRGB.updateOverLap(imgRGB,self.frameNumber,detPersonList)
+            #self.trackedPeopleRGB.updateWithSVM(imgRGB,self.frameNumber,detPersonList, "RGB")
+            #self.trackedPeopleRGB.updateBIPartiteAndSVM(imgRGB,self.frameNumber,detPersonList, "RGB")
+            #self.trackedPeopleRGB.updateBIPartiteAndSVMOverLap(imgRGB,self.frameNumber,detPersonList, "RGB")         
+#            if len(trainingData) > 0:
+#                self.svmDataRGB.extend(trainingData) #add the svm training data to master lists
+#                self.svmBoolsRGB.extend(trainingBools)
         else:
             print("Empty frame objects this frame")
         print("refreshing RGB people")
@@ -204,9 +209,13 @@ class HumanTracker:
                     #print(type(self.videoObjCurrentObjsIR[i].getMask()))
             print("updating IR people")
             trainingData, trainingBools = self.trackedPeopleIR.update(imgIR,self.frameNumber,detPersonList) 
-            if len(trainingData) > 0:
-                self.svmDataIR.extend(trainingData) #add the svm training data to master lists
-                self.svmBoolsIR.extend(trainingBools)
+            #trainingData, trainingBools = self.trackedPeopleIR.updateOverLap(imgIR,self.frameNumber,detPersonList) 
+            #self.trackedPeopleIR.updateWithSVM(imgIR,self.frameNumber,detPersonList, "IR") 
+            #self.trackedPeopleIR.updateBIPartiteAndSVM(imgIR,self.frameNumber,detPersonList, "IR") 
+            #self.trackedPeopleIR.updateBIPartiteAndSVMOverLap(imgIR,self.frameNumber,detPersonList, "IR")
+#            if len(trainingData) > 0:
+#                self.svmDataIR.extend(trainingData) #add the svm training data to master lists
+#                self.svmBoolsIR.extend(trainingBools)
         else:
             print("Empty frame objects this frame")
         print("refreshing IR people")
@@ -322,7 +331,7 @@ class People():
                     p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
                     p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
                     pixelDist = objectDistance(p1,p2)
-                    if pixelDist < 75:
+                    if pixelDist < 100:
 
                         if bestMatch[2] == -1:#j == 0:
                             bestMatch = [pixelDist, i, j, histDist]  # first iteration do not save to training data yet
@@ -426,19 +435,8 @@ class People():
                             print("updating person ", personList[i].ID, " with detection # in second chance", j)
                             
                             usedDetections.append(j)
-                            boolListPerson[i] =True
-                    
-
-
-
-
-
-
-
-
-
-
-        
+                            boolListPerson[i] =True            
+       
                         
             for j in range(len(detectionsList)): #spawn new person for the remaining detections
                 if j in usedDetections:
@@ -449,7 +447,121 @@ class People():
                     print("creating NEW person !!",self.index)
                     self.index=self.index+1
         return trainingData, trainingBools  
+
+    def updateOverLap(self,img,frameNumber,detectionsList): # update needs two passed in order to ensure that each person has a chance to match each box before the box is assigned to the wrond person
+        trainingData = [] # stuff for SVM
+        trainingBools = []
+        if len(detectionsList) == 0: #in case method is called on a empty detectionsList
+            return trainingData, trainingBools
+        personList = self.listOfPeople
+        
+        if len(personList) == 0: # if length of person list is zero generate a person for each detection
+            i = 0
+            for detection in detectionsList:
+                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist(),detection.getMask()) #step 3 only update persons histogram on creation, not in subsequent updates.
+                self.listOfPeople.append(tmp_node)
+                self.index=self.index+1
+                print("creating person for the first time!!",self.index-1)
+                i += 1
             
+        
+        else: 
+            matchesList = [] # the same length as personList  
+            for i in range(len(personList)): # generate the list of matches 
+                bestMatch =  [-1, i, -1, 1000000] #[pixelDist, personIdx, detectionIdx,histDist= 1000000 majic number should be replaced with better alternative]
+                person = personList[i]
+                for j in range(len(detectionsList)):
+                    detection = detectionsList[j]
+                        
+                    histDist = histogramComparison(detectionsList[j].getHist(),personList[i].hist)
+                    print(histDist, "histDist for person ",personList[i].ID, " and detection ", j)
+                    #pixelDist = objectDistance(getCentroid(detectionsList[j].getMask()),getCentroid(personList[i].mask))
+                    box0 = detection.getBbox()
+                    box1 = [box0[0],box0[1],box0[0]+box0[2],box0[1]+box0[3]]
+                    box2 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
+                    lapping = overLap(box1,box2) 
+                    p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
+                    p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
+                    pixelDist = objectDistance(p1,p2)
+                    if pixelDist < 75:
+
+                        if bestMatch[2] == -1:#j == 0:
+                            bestMatch = [lapping, i, j, histDist]  # first iteration do not save to training data yet
+                        else:
+                            if histDist > bestMatch[3] : #for some histograms larger value is better 0,2 Larger is better 1,3,4,,5 SMALLER is better
+                                trainingData.append([bestMatch[3],bestMatch[0]]) # save previous hist and pixel dist as a vector in training data when histogram match for current is better than previous
+                                trainingBools.append(0) # save classification for negative to bool list
+                                bestMatch = [pixelDist, i, j, histDist] 
+                            else:
+                                trainingData.append([histDist,lapping]) # save hist and pixel dist as a vector in training data when hist distance is not better than the current best match
+                                trainingBools.append(0) # save classification for negative to bool list
+                    else: # put data into list as negative
+                        trainingData.append([histDist,lapping]) # save hist and pixel dist as a vector in training data when pixel distance is not satisfied
+                        trainingBools.append(0) # save classification for negative to bool list
+                matchesList.append(bestMatch) #save the match for use in second pass
+            print(matchesList, " matchesList")
+            #del bestMatch
+            usedDetections = []
+            boolListPerson = []
+            
+            for i in range(len(personList)):  #assign detections from results of first pass 
+                if matchesList[i][2] == -1:
+                    continue # no match found
+                match = i # number to use to compare against i in order to see if the match was correct
+                for j in range(len(personList)):
+                    if matchesList[i][2] == matchesList[j][2] and i != j: # check if there is a disagreement on the match and ensure that we are not talking about the same person
+                        if matchesList[j][3] > matchesList[i][3]: #compare hist dists to see who had the better match !! the equality needs to match the one above
+                            match = j #give the match to the other guy
+                    
+                if match == i: #match was correct update person and update list that shows which detections were used
+                    personList[i].V=0
+                    personList[i].updateLocation(detectionsList[matchesList[i][2]].getBbox())
+                    personList[i].mask = detectionsList[matchesList[i][2]].getMask()
+                    if frameNumber % 1 == 0:
+                        personList[i].hist = detectionsList[matchesList[i][2]].getHist()
+                    print("updating person ", personList[i].ID, " with detection # ", matchesList[i][2])
+                    
+                    usedDetections.append(matchesList[i][2])
+                    boolListPerson.append(True)
+                    trainingData.append([matchesList[i][3],matchesList[i][0]]) # save hist and pixel dist as a vector in training data when match was valid. Only do this for videos that have been manually verified to not have errors in tracking!!!
+                    trainingBools.append(1) # save classification for negative to bool list
+                    
+                else:
+                    boolListPerson.append(False)
+                    #might need code here to chose other detection if pixel proximity is ok
+                    print("did not find detection for person ", i)
+                    trainingData.append([matchesList[i][3],matchesList[i][0]]) # save hist and pixel dist as a vector in training data when match was invalid
+                    trainingBools.append(0) # save classification for negative to bool list
+            
+
+                    
+            for i in range(len(boolListPerson)): #second chanceversion 2
+                if boolListPerson[i] == False and personList[i].nearEdge == False: #person is still present in scene do not spawn new person.
+                    for j in range(len(detectionsList)): #spawn new person for the remaining detections
+                        if j in usedDetections:
+                            pass
+                        else:
+                            personList[i].V=0
+                            personList[i].updateLocation(detectionsList[j].getBbox())
+                            personList[i].mask = detectionsList[j].getMask()
+                            if frameNumber % 1 == 0:
+                                personList[i].hist = detectionsList[j].getHist()
+                            print("updating person ", personList[i].ID, " with detection # in second chance", j)
+                            
+                            usedDetections.append(j)
+                            boolListPerson[i] =True            
+       
+                        
+            for j in range(len(detectionsList)): #spawn new person for the remaining detections
+                if j in usedDetections:
+                    pass
+                else:
+                    tmp_node=Person(self.index,detectionsList[j].getBbox(),0,detectionsList[j].getHist(),detectionsList[j].getMask()) 
+                    self.listOfPeople.append(tmp_node)
+                    print("creating NEW person !!",self.index)
+                    self.index=self.index+1
+        return trainingData, trainingBools  
+
 #            i = 0 #original method which did not have a second pass
 #            for person in personList: #iterate through the people to attempte to find a match twice
 #                print("attempting to find match for person ", person.ID)
@@ -540,7 +652,11 @@ class People():
                     p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
                     p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
                     pixelDist = objectDistance(p1,p2)
-                    if pixelDist < 75:
+                    
+                    prediction = model.predict([histDist,pixelDist]) #[histDist, pixelDist]
+                    
+                    #if pixelDist < 75:
+                    if prediction[0] == 1:
 
                         if bestMatch[2] == -1:#j == 0:
                             bestMatch = [pixelDist, i, j, histDist]  # first iteration do not save to training data yet
@@ -621,7 +737,167 @@ class People():
                     self.index=self.index+1
         return
             
+    def updateBIPartiteAndSVM(self,img,frameNumber,detectionsList,imageType):
+        
+        
+        if len(detectionsList) == 0: #in case method is called on a empty detectionsList
+            return
+        personList = self.listOfPeople
+        matchesMatrix = np.zeros([len(personList), len(detectionsList)], dtype=float)
+        print(matchesMatrix.shape)
+        
+        if imageType == "RGB":
+            model = self.SVMModelRGB
+        elif imageType == "IR":
+            model = self.SVMModelIR
+        if len(personList) == 0: # if length of person list is zero generate a person for each detection
+            i = 0
+            for detection in detectionsList:
+                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist(),detection.getMask()) #step 3 only update persons histogram on creation, not in subsequent updates.
+                self.listOfPeople.append(tmp_node)
+                self.index=self.index+1
+                print("creating person for the first time!!",self.index-1)
+                i += 1         
+        
+        else: 
+            potentialDetection = []
+            for i in range(len(personList)): # generate the list of matches 
+                
+                person = personList[i]
+                for j in range(len(detectionsList)):
+                    detection = detectionsList[j]
+                        
+                    histDist = histogramComparison(detectionsList[j].getHist(),personList[i].hist)
+                    print(histDist, "histDist for person ",personList[i].ID, " and detection ", j)
+                    
+                    #pixelDist = objectDistance(getCentroid(detectionsList[j].getMask()),getCentroid(personList[i].mask))
+                    box0 = detection.getBbox()
+                    
+                    p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
+                    p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
+                    pixelDist = objectDistance(p1,p2)
+                    print(pixelDist, "pixelDist for person ",personList[i].ID, " and detection ", j)
+                    prediction = model.predict([[histDist,pixelDist]]) #[histDist, pixelDist]
+                    print("SVM model prediction = ", prediction)
+                    #print("matches matrix before", matchesMatrix)
+                    #print(prediction[0])
+                    #print(prediction[0] == 1)
+                    if prediction[0] == 1:
+                        potentialDetection.append(True)
+                        matchesMatrix[i][j] = histDist
+                    else:
+                        matchesMatrix[i][j] = -1
+                        potentialDetection.append(False)
+                            
+            print("matching result", matchesMatrix)        
+            m = MaxBipartite(len(personList),len(detectionsList)) 
+            bipartiteMatching = m.maxBPM(matchesMatrix)
+            print("Bipartite result", bipartiteMatching) # (example [1,0,-1],detection 0 is person 1, detection 1 is person 0, and detection 2 has no match
+            usedDetections = []
+            updatedPeople = []
+            for i in range(len(bipartiteMatching)):
+                if bipartiteMatching[i] == -1: #no match found spawn new person
+                    tmp_node=Person(self.index,detectionsList[i].getBbox(),0,detectionsList[i].getHist(),detectionsList[i].getMask()) 
+                    self.listOfPeople.append(tmp_node)
+                    print("creating NEW person !!",self.index)
+                    self.index=self.index+1
+                    continue
+                else:
+                    personInd = bipartiteMatching[i]
+                    personList[personInd].V=0
+                    personList[personInd].updateLocation(detectionsList[i].getBbox())
+                    personList[personInd].mask = detectionsList[i].getMask()
+                    if frameNumber % 1 == 0:
+                        personList[personInd].hist = detectionsList[i].getHist()
+                    print("updating person ", personList[personInd].ID, " with detection # ", i)
+                        
+                    usedDetections.append(bipartiteMatching[i])
+                    updatedPeople.append(personList[personInd].ID)            
 
+        return
+    
+    def updateBIPartiteAndSVMOverLap(self,img,frameNumber,detectionsList,imageType):
+        
+        
+        if len(detectionsList) == 0: #in case method is called on a empty detectionsList
+            return
+        personList = self.listOfPeople
+        matchesMatrix = np.zeros([len(personList), len(detectionsList)], dtype=float)
+        print(matchesMatrix.shape)
+        
+        if imageType == "RGB":
+            model = self.SVMModelRGB
+        elif imageType == "IR":
+            model = self.SVMModelIR
+        if len(personList) == 0: # if length of person list is zero generate a person for each detection
+            i = 0
+            for detection in detectionsList:
+                tmp_node=Person(self.index,detection.getBbox(),0,detection.getHist(),detection.getMask()) #step 3 only update persons histogram on creation, not in subsequent updates.
+                self.listOfPeople.append(tmp_node)
+                self.index=self.index+1
+                print("creating person for the first time!!",self.index-1)
+                i += 1         
+        
+        else: 
+            potentialDetection = []
+            for i in range(len(personList)): # generate the list of matches 
+                
+                person = personList[i]
+                for j in range(len(detectionsList)):
+                    detection = detectionsList[j]
+                        
+                    histDist = histogramComparison(detectionsList[j].getHist(),personList[i].hist)
+                    print(histDist, "histDist for person ",personList[i].ID, " and detection ", j)
+                    
+                    #pixelDist = objectDistance(getCentroid(detectionsList[j].getMask()),getCentroid(personList[i].mask))
+                    box0 = detection.getBbox()
+                    box1 = [box0[0],box0[1],box0[0]+box0[2],box0[1]+box0[3]]
+                    box2 = [person.fX, person.fY, person.fX+person.fW, person.fY+person.fH]
+                    lapping = overLap(box1,box2) 
+#                    p1 = [box0[0]+box0[2]/2,box0[1]+box0[3]/2]
+#                    p2 = [person.fX + person.fW/2,person.fY+person.fH/2]
+#                    pixelDist = objectDistance(p1,p2)
+                    print(lapping, "lapping for person ",personList[i].ID, " and detection ", j)
+                    prediction = model.predict([[histDist,lapping]]) #[histDist, pixelDist]
+                    print("SVM model prediction = ", prediction)
+                    #print("matches matrix before", matchesMatrix)
+                    #print(prediction[0])
+                    #print(prediction[0] == 1)
+                    if prediction[0] == 1:
+                        potentialDetection.append(True)
+                        matchesMatrix[i][j] = histDist
+                    else:
+                        matchesMatrix[i][j] = -1
+                        potentialDetection.append(False)
+                            
+            print("matching result", matchesMatrix)        
+            m = MaxBipartite(len(personList),len(detectionsList)) 
+            bipartiteMatching = m.maxBPM(matchesMatrix)
+            print("Bipartite result", bipartiteMatching) # (example [1,0,-1],detection 0 is person 1, detection 1 is person 0, and detection 2 has no match
+            usedDetections = []
+            updatedPeople = []
+            for i in range(len(bipartiteMatching)):
+                if bipartiteMatching[i] == -1: #no match found spawn new person
+                    tmp_node=Person(self.index,detectionsList[i].getBbox(),0,detectionsList[i].getHist(),detectionsList[i].getMask()) 
+                    self.listOfPeople.append(tmp_node)
+                    print("creating NEW person !!",self.index)
+                    self.index=self.index+1
+                    continue
+                else:
+                    personInd = bipartiteMatching[i]
+                    personList[personInd].V=0
+                    personList[personInd].updateLocation(detectionsList[i].getBbox())
+                    personList[personInd].mask = detectionsList[i].getMask()
+                    if frameNumber % 1 == 0:
+                        personList[personInd].hist = detectionsList[i].getHist()
+                    print("updating person ", personList[personInd].ID, " with detection # ", i)
+                        
+                    usedDetections.append(bipartiteMatching[i])
+                    updatedPeople.append(personList[personInd].ID)            
+
+        return
+        
+        
     def refresh(self,img,imgCopy,frameNumber,RoiResizeDim): #updates people's boxes and checks for occlusion
         personList = list(self.listOfPeople) #make copy of people list to use for while loop
 
@@ -684,7 +960,14 @@ class People():
             person1.V=person1.V+1
             personList.remove(person1)
 
-
+    
+        
+        
+        
+        
+        
+        
+        
     def insertPerson(self,person,personList): # perhaps a better way to do this or it is unnessessary
         #print(len(personList),'person list length before')
         personList.append(person)
